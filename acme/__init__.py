@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,7 +25,6 @@ from acme._metadata import __version__
 
 # Expose core interfaces.
 from acme.core import Actor
-# Internal core import.
 from acme.core import Learner
 from acme.core import Saveable
 from acme.core import VariableSource
@@ -34,8 +32,6 @@ from acme.core import Worker
 
 # Expose the environment loop.
 from acme.environment_loop import EnvironmentLoop
-# Internal environment_loop import.
 
 from acme.specs import make_environment_spec
 
-# Acme loves you.

@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,3 +15,4 @@
 """Monte-Carlo tree search (MCTS) agent."""
 
 from acme.agents.tf.mcts.agent import MCTS
+from acme.agents.tf.mcts.agent_distributed import DistributedMCTS

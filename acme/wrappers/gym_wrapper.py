@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +14,7 @@
 
 """Wraps an OpenAI Gym environment to be used as a dm_env environment."""
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from acme import specs
 from acme import types
@@ -24,6 +23,7 @@ import dm_env
 import gym
 from gym import spaces
 import numpy as np
+import tree
 
 
 class GymWrapper(dm_env.Environment):
@@ -36,6 +36,7 @@ class GymWrapper(dm_env.Environment):
 
     self._environment = environment
     self._reset_next_step = True
+    self._last_info = None
 
     # Convert action and observation specs.
     obs_space = self._environment.observation_space
@@ -47,6 +48,8 @@ class GymWrapper(dm_env.Environment):
     """Resets the episode."""
     self._reset_next_step = False
     observation = self._environment.reset()
+    # Reset the diagnostic information.
+    self._last_info = None
     return dm_env.restart(observation)
 
   def step(self, action: types.NestedArray) -> dm_env.TimeStep:
@@ -56,6 +59,16 @@ class GymWrapper(dm_env.Environment):
 
     observation, reward, done, info = self._environment.step(action)
     self._reset_next_step = done
+    self._last_info = info
+
+    # Convert the type of the reward based on the spec, respecting the scalar or
+    # array property.
+    reward = tree.map_structure(
+        lambda x, t: (  # pylint: disable=g-long-lambda
+            t.dtype.type(x)
+            if np.isscalar(x) else np.asarray(x, dtype=t.dtype)),
+        reward,
+        self.reward_spec())
 
     if done:
       truncated = info.get('TimeLimit.truncated', False)
@@ -70,13 +83,23 @@ class GymWrapper(dm_env.Environment):
   def action_spec(self) -> types.NestedSpec:
     return self._action_spec
 
+  def get_info(self) -> Optional[Dict[str, Any]]:
+    """Returns the last info returned from env.step(action).
+
+    Returns:
+      info: dictionary of diagnostic information from the last environment step
+    """
+    return self._last_info
+
   @property
   def environment(self) -> gym.Env:
     """Returns the wrapped environment."""
     return self._environment
 
   def __getattr__(self, name: str):
-    # Expose any other attributes of the underlying environment.
+    if name.startswith('__'):
+      raise AttributeError(
+          "attempted to get missing private attribute '{}'".format(name))
     return getattr(self._environment, name)
 
   def close(self):
@@ -131,7 +154,8 @@ def _convert_to_spec(space: gym.Space,
 
   elif isinstance(space, spaces.Dict):
     return {
-        key: _convert_to_spec(value, key) for key, value in space.spaces.items()
+        key: _convert_to_spec(value, key)
+        for key, value in space.spaces.items()
     }
 
   else:

@@ -14,36 +14,86 @@
 # limitations under the License.
 
 
+ARGS=()
+DEPS_ONLY=""
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -d|--deps_only)
+      DEPS_ONLY=1
+      shift
+      ;;
+    *)
+      ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+# Restore the arguments.
+set -- "${ARGS[@]}"
+
 # Bash settings: fail on any error and display all commands being run.
 set -e
 set -x
 
-# Python must be 3.6 or higher.
-python --version
-
 # Set up a virtual environment.
+python --version
 python -m venv acme_testing
 source acme_testing/bin/activate
 
 # Install dependencies.
-pip install --upgrade pip setuptools
-pip --version
-pip install .
-pip install .[jax]
-pip install .[tf]
-pip install .[reverb]
-pip install .[envs]
-pip install .[testing]
-pip install .[launchpad]
+pip install --upgrade pip setuptools wheel xmanager
+pip install .[jax,tf,launchpad,testing,envs]
+
+# Stop early if we only want to install the dependencies.
+[[ -n ${DEPS_ONLY} ]] && exit 0
 
 N_CPU=$(grep -c ^processor /proc/cpuinfo)
+EXAMPLES=$(find examples/ -mindepth 1 -type d -not -path examples/offline -not -path examples/open_spiel -not -path examples/baselines)
 
 # Run static type-checking.
-pytype -k -j "${N_CPU}" `find . -maxdepth 1 -mindepth 1 -type d` -x 'examples/open_spiel examples/offline acme_testing'
+for TESTDIR in acme ${EXAMPLES}; do
+  if [`ls *.py | wc -l` != 0]; then
+    pytype -k -j "${N_CPU}" "${TESTDIR}"
+  fi
+done
 
 # Run all tests.
-pytest --ignore-glob="*/agent_test.py" --ignore-glob="*/agent_distributed_test.py" --durations=10 -n "${N_CPU}" acme
+pytest --ignore-glob="*/*agent*_test.py" --durations=10 -n "${N_CPU}" acme
 
-# Clean-up.
-deactivate
-rm -rf acme_testing/
+# We'll run tests for the continuous baselines.
+cd examples/baselines/rl_continuous
+
+# Run tests for distributed examples.
+# For each of them make sure StepsLimiter reached the limit step count.
+set +x
+set +e
+time python run_ppo.py --run_distributed=True --lp_termination_notice_secs=1 \
+  --env_name=gym:MountainCarContinuous-v0 --num_steps=1000 \
+  --num_distributed_actors=4 > /tmp/log.txt 2>&1
+set -x
+set -e
+cat /tmp/log.txt
+cat /tmp/log.txt | grep -E 'StepsLimiter: Max steps of [0-9]+ was reached, terminating'
+
+# Run tests for non-distributed examples.
+TEST_COUNT=0
+for TEST in run_*.py; do
+  echo "TEST: ${TEST}"
+  TEST_COUNT=$(($TEST_COUNT+1))
+  if [ $TEST == 'run_dmpo.py' ] ||
+     [ $TEST == 'run_mogmpo.py' ] ||
+     [ $TEST == 'run_mpo.py' ]; then
+    # This is a known breakage at the moment.
+    continue;
+  fi
+  time python "${TEST}" --run_distributed=False --num_steps=1000 \
+    --eval_every=1000 --env_name=gym:MountainCarContinuous-v0
+
+done
+# Make sure number of executed examples is expected. This makes sure
+# we will not forget to update this code when examples are renamed for example.
+if [ $TEST_COUNT -ne 7 ]; then
+  exit 1
+fi

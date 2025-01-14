@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -50,6 +49,7 @@ from acme.tf.networks.stochastic import ExpQWeightedPolicy
 from acme.tf.networks.stochastic import StochasticMeanHead
 from acme.tf.networks.stochastic import StochasticModeHead
 from acme.tf.networks.stochastic import StochasticSamplingHead
+from acme.tf.networks.vision import DrQTorso
 from acme.tf.networks.vision import ResNetTorso
 
 # For backwards compatibility.
@@ -63,3 +63,4 @@ except ImportError:
   pass
 
 # Internal imports.
+from acme.tf.networks.quantile import IQNNetwork

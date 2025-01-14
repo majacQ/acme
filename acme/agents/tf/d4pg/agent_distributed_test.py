@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +14,6 @@
 
 """Integration test for the distributed agent."""
 
-from absl.testing import absltest
 import acme
 from acme import specs
 from acme.agents.tf import d4pg
@@ -25,6 +23,8 @@ from acme.tf import utils as tf2_utils
 import launchpad as lp
 import numpy as np
 import sonnet as snt
+
+from absl.testing import absltest
 
 
 def make_networks(action_spec: specs.BoundedArray):
@@ -61,6 +61,7 @@ class DistributedAgentTest(absltest.TestCase):
     agent = d4pg.DistributedD4PG(
         environment_factory=lambda x: fakes.ContinuousEnvironment(bounded=True),
         network_factory=make_networks,
+        accelerator='CPU',
         num_actors=2,
         batch_size=32,
         min_replay_size=32,

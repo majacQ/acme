@@ -1,4 +1,3 @@
-# Lint as: python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,16 +16,16 @@
 
 import os
 
-from absl.testing import absltest
 from acme import specs
 from acme.tf import savers as tf2_savers
 from acme.tf import utils as tf2_utils
 from acme.tf.networks import recurrence
-
 import numpy as np
 import sonnet as snt
 import tensorflow as tf
 import tree
+
+from absl.testing import absltest
 
 
 # Simple critic-like modules for testing.

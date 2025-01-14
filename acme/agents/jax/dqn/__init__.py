@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,8 +14,21 @@
 
 """Implementation of a deep Q-networks (DQN) agent."""
 
-from acme.agents.jax.dqn.agent import DQN
-from acme.agents.jax.dqn.builder import default_behavior_policy
+from acme.agents.jax.dqn.actor import behavior_policy
+from acme.agents.jax.dqn.actor import default_behavior_policy
+from acme.agents.jax.dqn.actor import DQNPolicy
+from acme.agents.jax.dqn.actor import Epsilon
+from acme.agents.jax.dqn.actor import EpsilonPolicy
+from acme.agents.jax.dqn.builder import DistributionalDQNBuilder
 from acme.agents.jax.dqn.builder import DQNBuilder
 from acme.agents.jax.dqn.config import DQNConfig
 from acme.agents.jax.dqn.learning import DQNLearner
+from acme.agents.jax.dqn.learning_lib import LossExtra
+from acme.agents.jax.dqn.learning_lib import LossFn
+from acme.agents.jax.dqn.learning_lib import ReverbUpdate
+from acme.agents.jax.dqn.learning_lib import SGDLearner
+from acme.agents.jax.dqn.losses import PrioritizedCategoricalDoubleQLearning
+from acme.agents.jax.dqn.losses import PrioritizedDoubleQLearning
+from acme.agents.jax.dqn.losses import QLearning
+from acme.agents.jax.dqn.losses import QrDqn
+from acme.agents.jax.dqn.networks import DQNNetworks

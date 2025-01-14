@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -69,7 +68,7 @@ class _InternalBCQLearner(core.Learner, tf2_savers.TFSaveable):
       target_update_period: number of learner steps to perform before updating
         the target networks.
       dataset: dataset to learn from, whether fixed or from a replay buffer (see
-        `acme.datasets.reverb.make_dataset` documentation).
+        `acme.datasets.reverb.make_reverb_dataset` documentation).
       huber_loss_parameter: Quadratic-linear boundary for Huber loss.
       replay_client: client to replay to allow for updating priorities.
       counter: Counter object for (potentially distributed) counting.

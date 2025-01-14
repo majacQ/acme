@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,9 +16,11 @@
 
 from typing import Iterator, Optional
 
+from acme.adders import reverb as adders
 from acme.agents.jax.dqn import learning_lib
 from acme.agents.jax.dqn import losses
 from acme.jax import networks as networks_lib
+from acme.jax import utils
 from acme.utils import counting
 from acme.utils import loggers
 import optax
@@ -34,18 +35,20 @@ class DQNLearner(learning_lib.SGDLearner):
   """
 
   def __init__(self,
-               network: networks_lib.FeedForwardNetwork,
+               network: networks_lib.TypedFeedForwardNetwork,
                discount: float,
                importance_sampling_exponent: float,
                target_update_period: int,
-               iterator: Iterator[reverb.ReplaySample],
+               iterator: Iterator[utils.PrefetchingSplit],
                optimizer: optax.GradientTransformation,
                random_key: networks_lib.PRNGKey,
                max_abs_reward: float = 1.,
                huber_loss_parameter: float = 1.,
                replay_client: Optional[reverb.Client] = None,
+               replay_table_name: str = adders.DEFAULT_PRIORITY_TABLE,
                counter: Optional[counting.Counter] = None,
-               logger: Optional[loggers.Logger] = None):
+               logger: Optional[loggers.Logger] = None,
+               num_sgd_steps_per_step: int = 1):
     """Initializes the learner."""
     loss_fn = losses.PrioritizedDoubleQLearning(
         discount=discount,
@@ -61,6 +64,8 @@ class DQNLearner(learning_lib.SGDLearner):
         target_update_period=target_update_period,
         random_key=random_key,
         replay_client=replay_client,
+        replay_table_name=replay_table_name,
         counter=counter,
         logger=logger,
+        num_sgd_steps_per_step=num_sgd_steps_per_step,
     )

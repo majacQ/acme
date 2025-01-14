@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,4 +15,5 @@
 """Implementations of a distributional MPO agent."""
 
 from acme.agents.tf.dmpo.agent import DistributionalMPO
+from acme.agents.tf.dmpo.agent_distributed import DistributedDistributionalMPO
 from acme.agents.tf.dmpo.learning import DistributionalMPOLearner

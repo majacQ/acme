@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -46,7 +45,7 @@ import sonnet as snt
 import tensorflow as tf
 import trfl
 
-from deepmind_research.rl_unplugged import atari
+from deepmind_research.rl_unplugged import atari # type: ignore
 
 # Atari dataset flags
 flags.DEFINE_string('dataset_path', None, 'Dataset path.')

@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,11 +15,13 @@
 """Tests for atari_wrapper."""
 
 import unittest
-from absl.testing import absltest
-from absl.testing import parameterized
+
 from acme.wrappers import atari_wrapper
 from dm_env import specs
 import numpy as np
+
+from absl.testing import absltest
+from absl.testing import parameterized
 
 SKIP_GYM_TESTS = False
 SKIP_GYM_MESSAGE = 'gym not installed.'

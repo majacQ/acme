@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,15 +18,15 @@ from absl import app
 from absl import flags
 import acme
 from acme import specs
+from acme.agents.jax import actor_core as actor_core_lib
 from acme.agents.jax import actors
 from acme.agents.jax import bc
 from acme.examples.offline import bc_utils
+from acme.jax import utils
 from acme.jax import variable_utils
 from acme.utils import loggers
 import haiku as hk
 import jax
-import jax.numpy as jnp
-from jax.scipy import special
 import optax
 import rlax
 
@@ -54,39 +53,34 @@ def main(_):
   dataset = dataset.as_numpy_iterator()
 
   # Create the networks to optimize.
-  network = bc_utils.make_network(environment_spec)
+  bc_networks = bc_utils.make_network(environment_spec)
 
   key = jax.random.PRNGKey(FLAGS.seed)
   key, key1 = jax.random.split(key, 2)
 
-  def logp_fn(logits, actions):
-    logits_actions = jnp.sum(
-        jax.nn.one_hot(actions, logits.shape[-1]) * logits, axis=-1)
-    logits_actions = logits_actions - special.logsumexp(logits, axis=-1)
-    return logits_actions
-
-  loss_fn = bc.logp(logp_fn=logp_fn)
+  loss_fn = bc.logp()
 
   learner = bc.BCLearner(
-      network=network,
+      networks=bc_networks,
       random_key=key1,
       loss_fn=loss_fn,
       optimizer=optax.adam(FLAGS.learning_rate),
-      demonstrations=dataset,
+      prefetching_iterator=utils.sharded_prefetch(dataset),
       num_sgd_steps_per_step=1)
 
-  def evaluator_network(params: hk.Params, key: jnp.DeviceArray,
-                        observation: jnp.DeviceArray) -> jnp.DeviceArray:
-    dist_params = network.apply(params, observation)
+  def evaluator_network(
+      params: hk.Params, key: jax.Array, observation: jax.Array
+  ) -> jax.Array:
+    dist_params = bc_networks.policy_network.apply(params, observation)
     return rlax.epsilon_greedy(FLAGS.evaluation_epsilon).sample(
         key, dist_params)
 
-  evaluator = actors.FeedForwardActor(
-      policy=evaluator_network,
-      random_key=key,
-      # Inference happens on CPU, so it's better to move variables there too.
-      variable_client=variable_utils.VariableClient(
-          learner, 'policy', device='cpu'))
+  actor_core = actor_core_lib.batched_feed_forward_to_actor_core(
+      evaluator_network)
+  variable_client = variable_utils.VariableClient(
+      learner, 'policy', device='cpu')
+  evaluator = actors.GenericActor(
+      actor_core, key, variable_client, backend='cpu')
 
   eval_loop = acme.EnvironmentLoop(
       environment=environment,

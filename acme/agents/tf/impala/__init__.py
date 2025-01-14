@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,4 +16,5 @@
 
 from acme.agents.tf.impala.acting import IMPALAActor
 from acme.agents.tf.impala.agent import IMPALA
+from acme.agents.tf.impala.agent_distributed import DistributedIMPALA
 from acme.agents.tf.impala.learning import IMPALALearner

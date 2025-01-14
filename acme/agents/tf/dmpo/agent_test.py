@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +16,6 @@
 
 from typing import Dict, Sequence
 
-from absl.testing import absltest
 import acme
 from acme import specs
 from acme.agents.tf import dmpo
@@ -25,6 +23,8 @@ from acme.testing import fakes
 from acme.tf import networks
 import numpy as np
 import sonnet as snt
+
+from absl.testing import absltest
 
 
 def make_networks(

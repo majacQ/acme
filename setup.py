@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,10 +16,13 @@
 
 import datetime
 from importlib import util as import_util
+import os
 import sys
 
 from setuptools import find_packages
 from setuptools import setup
+import setuptools.command.build_py
+import setuptools.command.develop
 
 spec = import_util.spec_from_file_location('_metadata', 'acme/_metadata.py')
 _metadata = import_util.module_from_spec(spec)
@@ -28,43 +30,78 @@ spec.loader.exec_module(_metadata)
 
 # TODO(b/184148890): Add a release flag
 
-reverb_requirements = [
-    'dm-reverb-nightly',
+
+# Any particular version of reverb needs to be pinned against a particular
+# version of TF due to how it is built. While the versions below should be the
+# most recent stable versions of each library we'll be explicit just make make
+# sure this constraint is upheld.
+
+tensorflow = [
+    'tensorflow==2.8.0',
+    'tensorflow_probability==0.15.0',
+    'tensorflow_datasets==4.6.0',
+    'dm-reverb==0.7.2',
+    'dm-launchpad==0.5.2',
 ]
 
-tf_requirements = [
-    'tf-nightly',
-    'tfp-nightly',
-    'dm-sonnet',
-    'trfl',
-    'tensorflow_datasets',
-]
-
-jax_requirements = [
-    'jax',
-    'jaxlib',
-    'dm-haiku',
-    'optax',
-    'rlax @ git+git://github.com/deepmind/rlax.git#egg=rlax',
-    'dataclasses',  # Back-port for Python 3.6.
+core_requirements = [
+    'absl-py',
+    'dm-env',
+    'dm-tree',
+    'numpy',
+    'pillow',
     'typing-extensions',
 ]
 
-env_requirements = [
-    'bsuite',
-    'dm-control',
-    'gym',
-    'gym[atari]',
-]
+jax_requirements = [
+    'jax==0.4.3',
+    'jaxlib==0.4.3',
+    'chex',
+    'dm-haiku',
+    'flax',
+    'optax',
+    'rlax',
+] + tensorflow
+
+tf_requirements = [
+    'dm-sonnet',
+    'trfl',
+] + tensorflow
 
 testing_requirements = [
-    'pytype',
+    'pytype==2021.8.11',  # TODO(b/206926677): update to new version.
     'pytest-xdist',
 ]
 
-launchpad_requirements = [
-    'dm-launchpad-nightly',
+envs_requirements = [
+    'atari-py',
+    'bsuite',
+    'dm-control',
+    'gym==0.25.0',
+    'gym[atari]',
+    'pygame==2.1.0',
+    'rlds',
 ]
+
+
+def generate_requirements_file(path=None):
+  """Generates requirements.txt file with the Acme's dependencies.
+
+  It is used by Launchpad GCP runtime to generate Acme requirements to be
+  installed inside the docker image. Acme itself is not installed from pypi,
+  but instead sources are copied over to reflect any local changes made to
+  the codebase.
+
+  Args:
+    path: path to the requirements.txt file to generate.
+  """
+  if not path:
+    path = os.path.join(os.path.dirname(__file__), 'acme/requirements.txt')
+  with open(path, 'w') as f:
+    for package in set(core_requirements + jax_requirements + tf_requirements +
+                       envs_requirements):
+      f.write(f'{package}\n')
+
 
 long_description = """Acme is a library of reinforcement learning (RL) agents
 and agent building blocks. Acme strives to expose simple, efficient,
@@ -83,9 +120,29 @@ if '--nightly' in sys.argv:
   sys.argv.remove('--nightly')
   version += '.dev' + datetime.datetime.now().strftime('%Y%m%d')
 
+
+class BuildPy(setuptools.command.build_py.build_py):
+
+  def run(self):
+    generate_requirements_file()
+    setuptools.command.build_py.build_py.run(self)
+
+
+class Develop(setuptools.command.develop.develop):
+
+  def run(self):
+    generate_requirements_file()
+    setuptools.command.develop.develop.run(self)
+
+cmdclass = {
+    'build_py': BuildPy,
+    'develop': Develop,
+}
+
 setup(
     name='dm-acme',
     version=version,
+    cmdclass=cmdclass,
     description='A Python library for Reinforcement Learning.',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -93,20 +150,14 @@ setup(
     license='Apache License, Version 2.0',
     keywords='reinforcement-learning python machine learning',
     packages=find_packages(),
-    install_requires=[
-        'absl-py',
-        'dm_env',
-        'dm-tree',
-        'numpy',
-        'pillow',
-    ],
+    package_data={'': ['requirements.txt']},
+    include_package_data=True,
+    install_requires=core_requirements,
     extras_require={
         'jax': jax_requirements,
         'tf': tf_requirements,
-        'envs': env_requirements,
-        'reverb': reverb_requirements,
         'testing': testing_requirements,
-        'launchpad': launchpad_requirements,
+        'envs': envs_requirements,
     },
     classifiers=[
         'Development Status :: 3 - Alpha',
@@ -115,9 +166,8 @@ setup(
         'License :: OSI Approved :: Apache Software License',
         'Operating System :: POSIX :: Linux',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
     ],
 )

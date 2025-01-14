@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -91,3 +90,6 @@ class TerminalLogger(base.Logger):
     if (now - self._time) > self._time_delta:
       self._print_fn(f'{self._label}{self._serialize_fn(values)}')
       self._time = now
+
+  def close(self):
+    pass

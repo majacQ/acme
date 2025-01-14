@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,8 +22,10 @@ class Dispatcher(base.Logger):
   """Writes data to multiple `Logger` objects."""
 
   def __init__(
-      self, to: Sequence[base.Logger],
-      serialize_fn: Optional[Callable[[base.LoggingData], str]] = None):
+      self,
+      to: Sequence[base.Logger],
+      serialize_fn: Optional[Callable[[base.LoggingData], str]] = None,
+  ):
     """Initialize `Dispatcher` connected to several `Logger` objects."""
     self._to = to
     self._serialize_fn = serialize_fn
@@ -35,3 +36,7 @@ class Dispatcher(base.Logger):
       values = self._serialize_fn(values)
     for logger in self._to:
       logger.write(values)
+
+  def close(self):
+    for logger in self._to:
+      logger.close()

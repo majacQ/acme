@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -173,7 +172,7 @@ def to_numpy(nest: types.NestedTensor) -> types.NestedArray:
 
 def to_numpy_squeeze(nest: types.NestedTensor, axis=0) -> types.NestedArray:
   """Converts a nest of Tensors to a nest of numpy arrays and squeeze axis."""
-  return tree.map_structure(lambda x: x.numpy().squeeze(axis=axis), nest)
+  return tree.map_structure(lambda x: tf.squeeze(x, axis=axis).numpy(), nest)
 
 
 def zeros_like(nest: types.Nest) -> types.NestedTensor:

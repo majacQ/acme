@@ -19,9 +19,14 @@ from acme.wrappers.atari_wrapper import AtariWrapper
 from acme.wrappers.base import EnvironmentWrapper
 from acme.wrappers.base import wrap_all
 from acme.wrappers.canonical_spec import CanonicalSpecWrapper
+from acme.wrappers.concatenate_observations import ConcatObservationWrapper
+from acme.wrappers.delayed_reward import DelayedRewardWrapper
+from acme.wrappers.expand_scalar_observation_shapes import ExpandScalarObservationShapesWrapper
+from acme.wrappers.frame_stacking import FrameStacker
 from acme.wrappers.frame_stacking import FrameStackingWrapper
 from acme.wrappers.gym_wrapper import GymAtariAdapter
 from acme.wrappers.gym_wrapper import GymWrapper
+from acme.wrappers.noop_starts import NoopStartsWrapper
 from acme.wrappers.observation_action_reward import ObservationActionRewardWrapper
 from acme.wrappers.single_precision import SinglePrecisionWrapper
 from acme.wrappers.step_limit import StepLimitWrapper

@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,19 +13,19 @@
 # limitations under the License.
 
 """Some types/assumptions used in the IMPALA agent."""
-from typing import Callable
+from typing import Callable, Tuple
 
+from acme.agents.jax.actor_core import RecurrentState
 from acme.jax import networks
-import haiku as hk
+from acme.jax import types as jax_types
 import jax.numpy as jnp
-
 
 # Only simple observations & discrete action spaces for now.
 Observation = jnp.ndarray
 Action = int
-PolicyValueInitFn = Callable[[networks.PRNGKey, Observation, hk.LSTMState],
+Outputs = Tuple[Tuple[networks.Logits, networks.Value], RecurrentState]
+PolicyValueInitFn = Callable[[networks.PRNGKey, RecurrentState],
                              networks.Params]
-PolicyValueFn = Callable[[networks.Params, Observation, hk.LSTMState],
-                         networks.LSTMOutputs]
-RecurrentStateInitFn = Callable[[networks.PRNGKey], networks.Params]
-RecurrentStateFn = Callable[[networks.Params], hk.LSTMState]
+PolicyValueFn = Callable[[networks.Params, Observation, RecurrentState],
+                         Outputs]
+RecurrentStateFn = Callable[[jax_types.PRNGKey], RecurrentState]

@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,6 +29,21 @@ def fast_map_structure(func, *structure):
   # Arbitrarily choose one of the structures of the original sequence (the last)
   # to match the structure for the flattened sequence.
   return tree.unflatten_as(structure[-1], [func(*x) for x in entries])
+
+
+def fast_map_structure_with_path(func, *structure):
+  """Faster map_structure_with_path implementation."""
+  head_entries_with_path = tree.flatten_with_path(structure[0])
+  if len(structure) > 1:
+    tail_entries = (tree.flatten(s) for s in structure[1:])
+    entries_with_path = [
+        e[0] + e[1:] for e in zip(head_entries_with_path, *tail_entries)
+    ]
+  else:
+    entries_with_path = head_entries_with_path
+  # Arbitrarily choose one of the structures of the original sequence (the last)
+  # to match the structure for the flattened sequence.
+  return tree.unflatten_as(structure[-1], [func(*x) for x in entries_with_path])
 
 
 def stack_sequence_fields(sequence: Sequence[ElementType]) -> ElementType:
@@ -85,11 +99,11 @@ def stack_sequence_fields(sequence: Sequence[ElementType]) -> ElementType:
 
   # Default to asarray when arrays don't have the same shape to be compatible
   # with old behaviour.
-  # TODO(b/169306678) make this more elegant.
   try:
     return fast_map_structure(lambda *values: np.stack(values), *sequence)
   except ValueError:
-    return fast_map_structure(lambda *values: np.asarray(values), *sequence)
+    return fast_map_structure(lambda *values: np.asarray(values, dtype=object),
+                              *sequence)
 
 
 def unstack_sequence_fields(struct: ElementType,
@@ -151,8 +165,10 @@ def broadcast_structures(*args: Any) -> Any:
       reference_tree = arg
       break
 
+  # If reference_tree is None then none of args are nested and we can skip over
+  # the rest of this function, which would be a no-op.
   if reference_tree is None:
-    reference_tree = args[0]
+    return args
 
   def mirror_structure(value, reference_tree):
     if tree.is_nested(value):

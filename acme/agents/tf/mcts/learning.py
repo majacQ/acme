@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +14,7 @@
 
 """A MCTS "AlphaZero-style" learner."""
 
-from typing import List
+from typing import List, Optional
 
 import acme
 from acme.tf import utils as tf2_utils
@@ -35,8 +34,8 @@ class AZLearner(acme.Learner):
       optimizer: snt.Optimizer,
       dataset: tf.data.Dataset,
       discount: float,
-      logger: loggers.Logger = None,
-      counter: counting.Counter = None,
+      logger: Optional[loggers.Logger] = None,
+      counter: Optional[counting.Counter] = None,
   ):
 
     # Logger and counter for tracking statistics / writing out to terminal.

@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -60,7 +59,7 @@ class R2D3(agent.Agent):
                importance_sampling_exponent: float = 0.2,
                epsilon: float = 0.01,
                learning_rate: float = 1e-3,
-               log_to_bigtable: bool = False,
+               save_logs: bool = False,
                log_name: str = 'agent',
                checkpoint: bool = True,
                min_replay_size: int = 1000,
@@ -90,7 +89,7 @@ class R2D3(agent.Agent):
         sequence_length=sequence_length,
     )
     adder = adders.SequenceAdder(client=reverb.Client(address),
-                                   **sequence_kwargs)
+                                 **sequence_kwargs)
 
     # The dataset object to learn from.
     dataset = datasets.make_reverb_dataset(
@@ -214,16 +213,8 @@ def _sequence_from_episode(observations: acme_types.NestedTensor,
     return tf.zeros([sequence_length] + spec.shape, spec.dtype)
 
   e_t = tree.map_structure(_sequence_zeros, extra_spec)
-
-  key = tf.zeros([], tf.uint64)
-  probability = tf.ones([], tf.float64)
-  table_size = tf.ones([], tf.int64)
-  priority = tf.ones([], tf.float64)
-  info = reverb.SampleInfo(
-      key=key,
-      probability=probability,
-      table_size=table_size,
-      priority=priority)
+  info = tree.map_structure(lambda dtype: tf.ones([], dtype),
+                            reverb.SampleInfo.tf_dtypes())
   return reverb.ReplaySample(
       info=info,
       data=adders.Step(

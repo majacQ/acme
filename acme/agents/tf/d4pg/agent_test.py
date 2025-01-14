@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,9 +14,9 @@
 
 """Tests for the D4PG agent."""
 
+import sys
 from typing import Dict, Sequence
 
-from absl.testing import absltest
 import acme
 from acme import specs
 from acme import types
@@ -27,6 +26,8 @@ from acme.tf import networks
 import numpy as np
 import sonnet as snt
 import tensorflow as tf
+
+from absl.testing import absltest
 
 
 def make_networks(
@@ -70,6 +71,7 @@ class D4PGTest(absltest.TestCase):
     # Construct the agent.
     agent = d4pg.D4PG(
         environment_spec=spec,
+        accelerator='CPU',
         policy_network=agent_networks['policy'],
         critic_network=agent_networks['critic'],
         batch_size=10,
@@ -81,6 +83,8 @@ class D4PGTest(absltest.TestCase):
     # we care about is that the agent runs without raising any errors.
     loop = acme.EnvironmentLoop(environment, agent)
     loop.run(num_episodes=2)
+
+    # Imports check
 
 
 if __name__ == '__main__':

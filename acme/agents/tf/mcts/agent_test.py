@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +14,6 @@
 
 """Tests for the MCTS agent."""
 
-from absl.testing import absltest
 import acme
 from acme import specs
 from acme.agents.tf import mcts
@@ -24,6 +22,8 @@ from acme.testing import fakes
 from acme.tf import networks
 import numpy as np
 import sonnet as snt
+
+from absl.testing import absltest
 
 
 class MCTSTest(absltest.TestCase):

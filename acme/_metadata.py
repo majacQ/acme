@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +20,7 @@ a time when acme's dependencies may not have been installed yet.
 
 # We follow Semantic Versioning (https://semver.org/)
 _MAJOR_VERSION = '0'
-_MINOR_VERSION = '2'
+_MINOR_VERSION = '4'
 _PATCH_VERSION = '1'
 
 # Example: '0.4.2'

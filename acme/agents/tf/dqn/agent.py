@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -58,9 +57,9 @@ class DQN(agent.Agent):
       epsilon: Optional[tf.Variable] = None,
       learning_rate: float = 1e-3,
       discount: float = 0.99,
-      logger: loggers.Logger = None,
+      logger: Optional[loggers.Logger] = None,
       checkpoint: bool = True,
-      checkpoint_subpath: str = '~/acme/',
+      checkpoint_subpath: str = '~/acme',
       policy_network: Optional[snt.Module] = None,
       max_gradient_norm: Optional[float] = None,
   ):
@@ -89,7 +88,8 @@ class DQN(agent.Agent):
       discount: discount to use for TD updates.
       logger: logger object to be used by learner.
       checkpoint: boolean indicating whether to checkpoint the learner.
-      checkpoint_subpath: directory for the checkpoint.
+      checkpoint_subpath: string indicating where the agent should save
+        checkpoints and snapshots.
       policy_network: if given, this will be used as the policy network.
         Otherwise, an epsilon greedy policy using the online Q network will be
         created. Policy network is used in the actor to sample actions.
@@ -153,7 +153,8 @@ class DQN(agent.Agent):
         replay_client=replay_client,
         max_gradient_norm=max_gradient_norm,
         logger=logger,
-        checkpoint=checkpoint)
+        checkpoint=checkpoint,
+        save_directory=checkpoint_subpath)
 
     if checkpoint:
       self._checkpointer = tf2_savers.Checkpointer(

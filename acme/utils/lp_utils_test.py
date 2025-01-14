@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,12 +14,12 @@
 
 """Tests for acme launchpad utilities."""
 
-from absl.testing import absltest
-
 from acme.utils import lp_utils
 
+from absl.testing import absltest
 
-class EnvironmentLoopTest(absltest.TestCase):
+
+class LpUtilsTest(absltest.TestCase):
 
   def test_partial_kwargs(self):
 

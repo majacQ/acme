@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -55,6 +54,7 @@ class MPOLearner(acme.Learner):
       counter: Optional[counting.Counter] = None,
       logger: Optional[loggers.Logger] = None,
       checkpoint: bool = True,
+      save_directory: str = '~/acme',
   ):
 
     self._counter = counter or counting.Counter()
@@ -86,11 +86,11 @@ class MPOLearner(acme.Learner):
     self._policy_loss_module = policy_loss_module or losses.MPO(
         epsilon=1e-1,
         epsilon_penalty=1e-3,
-        epsilon_mean=1e-3,
+        epsilon_mean=2.5e-3,
         epsilon_stddev=1e-6,
-        init_log_temperature=1.,
-        init_log_alpha_mean=1.,
-        init_log_alpha_stddev=10.)
+        init_log_temperature=10.,
+        init_log_alpha_mean=10.,
+        init_log_alpha_stddev=1000.)
 
     # Create the optimizers.
     self._critic_optimizer = critic_optimizer or snt.optimizers.Adam(1e-4)
@@ -111,6 +111,7 @@ class MPOLearner(acme.Learner):
 
     if checkpoint:
       self._checkpointer = tf2_savers.Checkpointer(
+          directory=save_directory,
           subdirectory='mpo_learner',
           objects_to_save={
               'counter': self._counter,
@@ -128,6 +129,7 @@ class MPOLearner(acme.Learner):
           })
 
       self._snapshotter = tf2_savers.Snapshotter(
+          directory=save_directory,
           objects_to_save={
               'policy':
                   snt.Sequential([

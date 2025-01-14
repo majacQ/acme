@@ -12,25 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-# Lint as: python3
 """Tests for TF2 savers."""
 
 import os
+import re
 import time
 from unittest import mock
 
-from absl.testing import absltest
 from acme import specs
 from acme.testing import test_utils
 from acme.tf import networks
 from acme.tf import savers as tf2_savers
 from acme.tf import utils as tf2_utils
 from acme.utils import paths
+import launchpad
 import numpy as np
 import sonnet as snt
 import tensorflow as tf
 import tree
+
+from absl.testing import absltest
 
 
 class DummySaveable(tf2_savers.TFSaveable):
@@ -123,6 +124,51 @@ class CheckpointerTest(test_utils.TestCase):
     np.testing.assert_array_equal(x._state.numpy(), np.int32(0))
 
 
+class CheckpointingRunnerTest(test_utils.TestCase):
+
+  def test_signal_handling(self):
+    x = DummySaveable()
+
+    # Increment the value of DummySavable.
+    x.state['state'].assign_add(1)
+
+    directory = self.get_tempdir()
+
+    # Patch signals.add_handler so the registered signal handler sets the event.
+    with mock.patch.object(
+        launchpad, 'register_stop_handler') as mock_register_stop_handler:
+      def add_handler(fn):
+        fn()
+      mock_register_stop_handler.side_effect = add_handler
+
+      runner = tf2_savers.CheckpointingRunner(
+          wrapped=x,
+          time_delta_minutes=0,
+          directory=directory)
+      with self.assertRaises(SystemExit):
+        runner.run()
+
+    # Recreate DummySavable(), its tf.Variable is initialized to 0.
+    x = DummySaveable()
+    # Recreate the CheckpointingRunner, which will restore DummySavable() to 1.
+    tf2_savers.CheckpointingRunner(
+        wrapped=x,
+        time_delta_minutes=0,
+        directory=directory)
+    # Check DummyVariable() was restored properly.
+    np.testing.assert_array_equal(x.state['state'].numpy(), np.int32(1))
+
+  def test_checkpoint_dir(self):
+    directory = self.get_tempdir()
+    ckpt_runner = tf2_savers.CheckpointingRunner(
+        wrapped=DummySaveable(),
+        time_delta_minutes=0,
+        directory=directory)
+    expected_dir_re = f'{directory}/[a-z0-9-]*/checkpoints/default'
+    regexp = re.compile(expected_dir_re)
+    self.assertIsNotNone(regexp.fullmatch(ckpt_runner.get_directory()))
+
+
 class SnapshotterTest(test_utils.TestCase):
 
   def test_snapshot(self):
@@ -136,6 +182,38 @@ class SnapshotterTest(test_utils.TestCase):
     directory = self.get_tempdir()
     objects_to_save = {'net': net1}
     snapshotter = tf2_savers.Snapshotter(objects_to_save, directory=directory)
+    snapshotter.save()
+
+    # Reload the test network.
+    net2 = tf.saved_model.load(os.path.join(snapshotter.directory, 'net'))
+    inputs = tf2_utils.add_batch_dim(tf2_utils.zeros_like(spec))
+
+    with tf.GradientTape() as tape:
+      outputs1 = net1(inputs)
+      loss1 = tf.math.reduce_sum(outputs1)
+      grads1 = tape.gradient(loss1, net1.trainable_variables)
+
+    with tf.GradientTape() as tape:
+      outputs2 = net2(inputs)
+      loss2 = tf.math.reduce_sum(outputs2)
+      grads2 = tape.gradient(loss2, net2.trainable_variables)
+
+    assert np.allclose(outputs1, outputs2)
+    assert all(tree.map_structure(np.allclose, list(grads1), list(grads2)))
+
+  def test_snapshot_no_ttl(self):
+    """Test that snapshotter correctly calls saves/restores snapshots w/o a TTL."""
+    # Create a test network.
+    net1 = networks.LayerNormMLP([10, 10])
+    spec = specs.Array([10], dtype=np.float32)
+    tf2_utils.create_variables(net1, [spec])
+
+    # Save the test network.
+    directory = self.get_tempdir()
+    objects_to_save = {'net': net1}
+    snapshotter = tf2_savers.Snapshotter(
+        objects_to_save, directory=directory, snapshot_ttl_seconds=None
+    )
     snapshotter.save()
 
     # Reload the test network.

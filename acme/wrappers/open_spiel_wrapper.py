@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +22,6 @@ import dm_env
 import numpy as np
 # pytype: disable=import-error
 from open_spiel.python import rl_environment
-import pyspiel
 # pytype: enable=import-error
 
 
@@ -43,9 +41,8 @@ class OpenSpielWrapper(dm_env.Environment):
   def __init__(self, environment: rl_environment.Environment):
     self._environment = environment
     self._reset_next_step = True
-    if environment.game.get_type(
-    ).dynamics != pyspiel.GameType.Dynamics.SEQUENTIAL:
-      raise ValueError("Currently only supports sequential games.")
+    if not environment.is_turn_based:
+      raise ValueError("Currently only supports turn based games.")
 
   def reset(self) -> dm_env.TimeStep:
     """Resets the episode."""
@@ -144,4 +141,7 @@ class OpenSpielWrapper(dm_env.Environment):
 
   def __getattr__(self, name: str):
     """Expose any other attributes of the underlying environment."""
+    if name.startswith("__"):
+      raise AttributeError(
+          "attempted to get missing private attribute '{}'".format(name))
     return getattr(self._environment, name)

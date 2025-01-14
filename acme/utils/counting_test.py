@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,8 +15,10 @@
 """Tests for acme.utils.counting."""
 
 import threading
-from absl.testing import absltest
+
 from acme.utils import counting
+
+from absl.testing import absltest
 
 
 class Barrier:
@@ -94,6 +95,23 @@ class CountingTest(absltest.TestCase):
     self.assertEqual(child1.get_counts(), {'child1_foo': 1, 'child2_bar': 1})
     self.assertEqual(child2.get_counts(), {'bar': 1})
 
+  def test_get_steps_key(self):
+    parent = counting.Counter()
+    child1 = counting.Counter(
+        parent, 'child1', time_delta=0., return_only_prefixed=False)
+    child2 = counting.Counter(
+        parent, 'child2', time_delta=0., return_only_prefixed=True)
+    self.assertEqual(child1.get_steps_key(), 'child1_steps')
+    self.assertEqual(child2.get_steps_key(), 'steps')
+    child1.increment(steps=1)
+    child2.increment(steps=2)
+    self.assertEqual(child1.get_counts().get(child1.get_steps_key()), 1)
+    self.assertEqual(child2.get_counts().get(child2.get_steps_key()), 2)
+
+  def test_parent_prefix(self):
+    parent = counting.Counter(prefix='parent')
+    child = counting.Counter(parent, prefix='child', time_delta=0.)
+    self.assertEqual(child.get_steps_key(), 'child_steps')
 
 if __name__ == '__main__':
   absltest.main()

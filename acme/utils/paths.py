@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,16 +16,14 @@
 
 import os
 import os.path
+import shutil
+import time
 from typing import Optional, Tuple
-import uuid
 
 from absl import flags
 
-flags.DEFINE_string('acme_id', None, 'Experiment identifier to use for Acme.')
-FLAGS = flags.FLAGS
-
-# Pre-compute a unique identifier which is consistent within a single process.
-_ACME_ID = uuid.uuid1()
+ACME_ID = flags.DEFINE_string('acme_id', None,
+                              'Experiment identifier to use for Acme.')
 
 
 def process_path(path: str,
@@ -46,7 +43,8 @@ def process_path(path: str,
     ttl_seconds: ignored.
     backups: ignored.
     add_uid: Whether to add a unique directory identifier between `path` and
-      `subpaths`. If FLAGS.acme_id is set, will use that as the identifier.
+      `subpaths`. If the `--acme_id` flag is set, will use that as the
+      identifier.
 
   Returns:
     the processed, expanded path string.
@@ -54,7 +52,6 @@ def process_path(path: str,
   del backups, ttl_seconds
 
   path = os.path.expanduser(path)
-  # TODO(b/145460917): consider replacing this---e.g. with a timestamp.
   if add_uid:
     path = os.path.join(path, *get_unique_id())
   path = os.path.join(path, *subpaths)
@@ -62,17 +59,25 @@ def process_path(path: str,
   return path
 
 
+_DATETIME = time.strftime('%Y%m%d-%H%M%S')
+
+
 def get_unique_id() -> Tuple[str, ...]:
-  """Makes a unique identifier for this process; override with FLAGS.acme_id."""
+  """Makes a unique identifier for this process; override with --acme_id."""
   # By default we'll use the global id.
-  identifier = str(_ACME_ID)
+  identifier = _DATETIME
 
   # If the --acme_id flag is given prefer that; ignore if flag processing has
   # been skipped (this happens in colab or in tests).
   try:
-    identifier = FLAGS.acme_id or identifier
+    identifier = ACME_ID.value or identifier
   except flags.UnparsedFlagAccessError:
     pass
 
   # Return as a tuple (for future proofing).
   return (identifier,)
+
+
+def rmdir(path: str):
+  """Remove directory recursively."""
+  shutil.rmtree(path)

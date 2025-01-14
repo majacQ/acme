@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,11 +15,12 @@
 """Base logger."""
 
 import abc
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 
+import jax
 import numpy as np
 import tree
-
+from typing_extensions import Protocol
 
 LoggingData = Mapping[str, Any]
 
@@ -31,6 +31,25 @@ class Logger(abc.ABC):
   @abc.abstractmethod
   def write(self, data: LoggingData) -> None:
     """Writes `data` to destination (file, terminal, database, etc)."""
+
+  @abc.abstractmethod
+  def close(self) -> None:
+    """Closes the logger, not expecting any further write."""
+
+
+TaskInstance = int
+# TODO(stanczyk): Turn LoggerLabel into an enum of [Learner, Actor, Evaluator].
+LoggerLabel = str
+LoggerStepsKey = str
+
+
+class LoggerFactory(Protocol):
+
+  def __call__(self,
+               label: LoggerLabel,
+               steps_key: Optional[LoggerStepsKey] = None,
+               instance: Optional[TaskInstance] = None) -> Logger:
+    ...
 
 
 class NoOpLogger(Logger):
@@ -43,12 +62,15 @@ class NoOpLogger(Logger):
   def write(self, data: LoggingData):
     pass
 
+  def close(self):
+    pass
+
 
 def tensor_to_numpy(value: Any):
   if hasattr(value, 'numpy'):
     return value.numpy()  # tf.Tensor (TF2).
-  if hasattr(value, 'device_buffer'):
-    return np.asarray(value)  # jnp.DeviceArray.
+  if isinstance(value, jax.Array):
+    return np.asarray(value)
   return value
 
 

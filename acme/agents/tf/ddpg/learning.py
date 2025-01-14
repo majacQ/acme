@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +15,7 @@
 """DDPG learner implementation."""
 
 import time
-from typing import List
+from typing import List, Optional
 
 import acme
 from acme import types
@@ -50,11 +49,11 @@ class DDPGLearner(acme.Learner):
       dataset: tf.data.Dataset,
       observation_network: types.TensorTransformation = lambda x: x,
       target_observation_network: types.TensorTransformation = lambda x: x,
-      policy_optimizer: snt.Optimizer = None,
-      critic_optimizer: snt.Optimizer = None,
+      policy_optimizer: Optional[snt.Optimizer] = None,
+      critic_optimizer: Optional[snt.Optimizer] = None,
       clipping: bool = True,
-      counter: counting.Counter = None,
-      logger: loggers.Logger = None,
+      counter: Optional[counting.Counter] = None,
+      logger: Optional[loggers.Logger] = None,
       checkpoint: bool = True,
   ):
     """Initializes the learner.
@@ -69,7 +68,7 @@ class DDPGLearner(acme.Learner):
       target_update_period: number of learner steps to perform before updating
         the target networks.
       dataset: dataset to learn from, whether fixed or from a replay buffer
-        (see `acme.datasets.reverb.make_dataset` documentation).
+        (see `acme.datasets.reverb.make_reverb_dataset` documentation).
       observation_network: an optional online network to process observations
         before the policy and the critic.
       target_observation_network: the target observation network.

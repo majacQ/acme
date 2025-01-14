@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +15,7 @@
 """DQN learner implementation."""
 
 import time
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 import acme
 from acme import types
@@ -50,12 +49,14 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
       learning_rate: float,
       target_update_period: int,
       dataset: tf.data.Dataset,
+      max_abs_reward: Optional[float] = 1.,
       huber_loss_parameter: float = 1.,
-      replay_client: Union[reverb.Client, reverb.TFClient] = None,
-      counter: counting.Counter = None,
-      logger: loggers.Logger = None,
+      replay_client: Optional[Union[reverb.Client, reverb.TFClient]] = None,
+      counter: Optional[counting.Counter] = None,
+      logger: Optional[loggers.Logger] = None,
       checkpoint: bool = True,
-      max_gradient_norm: float = None,
+      save_directory: str = '~/acme',
+      max_gradient_norm: Optional[float] = None,
   ):
     """Initializes the learner.
 
@@ -69,12 +70,15 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
       target_update_period: number of learner steps to perform before updating
         the target networks.
       dataset: dataset to learn from, whether fixed or from a replay buffer (see
-        `acme.datasets.reverb.make_dataset` documentation).
+        `acme.datasets.reverb.make_reverb_dataset` documentation).
+      max_abs_reward: Optional maximum absolute value for the reward.
       huber_loss_parameter: Quadratic-linear boundary for Huber loss.
       replay_client: client to replay to allow for updating priorities.
       counter: Counter object for (potentially distributed) counting.
       logger: Logger object for writing logs to.
       checkpoint: boolean indicating whether to checkpoint the learner.
+      save_directory: string indicating where the learner should save
+        checkpoints and snapshots.
       max_gradient_norm: used for gradient clipping.
     """
 
@@ -82,7 +86,10 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
     # This is just here for backwards compatability for agents which reuse this
     # Learner and still pass a TFClient instance.
     if isinstance(replay_client, reverb.TFClient):
-      replay_client = reverb.Client(replay_client._server_address)
+      # TODO(b/170419518): open source pytype does not understand this
+      # isinstance() check because it does not have a way of getting precise
+      # type information for pip-installed packages.
+      replay_client = reverb.Client(replay_client._server_address)  # pytype: disable=attribute-error
 
     # Internalise agent components (replay buffer, networks, optimizer).
     # TODO(b/155086959): Fix type stubs and remove.
@@ -101,6 +108,7 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
     self._discount = discount
     self._target_update_period = target_update_period
     self._importance_sampling_exponent = importance_sampling_exponent
+    self._max_abs_reward = max_abs_reward
     self._huber_loss_parameter = huber_loss_parameter
     if max_gradient_norm is None:
       max_gradient_norm = 1e10  # A very large number. Infinity results in NaNs.
@@ -117,7 +125,9 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
     # Create a snapshotter object.
     if checkpoint:
       self._snapshotter = tf2_savers.Snapshotter(
-          objects_to_save={'network': network}, time_delta_minutes=60.)
+          objects_to_save={'network': network},
+          directory=save_directory,
+          time_delta_minutes=60.)
     else:
       self._snapshotter = None
 
@@ -143,7 +153,8 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
 
       # The rewards and discounts have to have the same type as network values.
       r_t = tf.cast(transitions.reward, q_tm1.dtype)
-      r_t = tf.clip_by_value(r_t, -1., 1.)
+      if self._max_abs_reward:
+        r_t = tf.clip_by_value(r_t, -self._max_abs_reward, self._max_abs_reward)
       d_t = tf.cast(transitions.discount, q_tm1.dtype) * tf.cast(
           self._discount, q_tm1.dtype)
 

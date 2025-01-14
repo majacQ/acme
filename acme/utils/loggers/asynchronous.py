@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,3 +35,8 @@ class AsyncLogger(base.Logger):
 
   def write(self, values: Mapping[str, Any]):
     self._async_worker.put(values)
+
+  def close(self):
+    """Closes the logger, closing is synchronous."""
+    self._async_worker.close()
+    self._to.close()

@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,13 +14,12 @@
 
 """Tests for the single precision wrapper."""
 
-from absl.testing import absltest
-
 from acme import wrappers
 from acme.testing import fakes
-
 import numpy as np
 import tree
+
+from absl.testing import absltest
 
 
 class FakeNonZeroObservationEnvironment(fakes.ContinuousEnvironment):

@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,14 +15,15 @@
 """Tests for the environment loop."""
 
 from typing import Optional
-from absl.testing import absltest
-from absl.testing import parameterized
 
 from acme import environment_loop
 from acme import specs
 from acme import types
 from acme.testing import fakes
 import numpy as np
+
+from absl.testing import absltest
+from absl.testing import parameterized
 
 EPISODE_LENGTH = 10
 

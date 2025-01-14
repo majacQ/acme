@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,10 +19,9 @@ This file specifies and documents the notions of `Actor` and `Learner`.
 
 import abc
 import itertools
-from typing import Generic, List, Optional, Sequence, TypeVar
+from typing import Generic, Iterator, List, Optional, Sequence, TypeVar
 
 from acme import types
-# Internal imports.
 from acme.utils import metrics
 import dm_env
 
@@ -40,7 +38,7 @@ class Actor(abc.ABC):
 
     # Make the first observation.
     timestep = env.reset()
-    actor.observe_first(timestep.observation)
+    actor.observe_first(timestep)
 
     # Take a step and observe.
     action = actor.select_action(timestep.observation)
@@ -86,9 +84,6 @@ class Actor(abc.ABC):
     Args:
       wait: if True, the update will be blocking.
     """
-
-
-# Internal class.
 
 
 class VariableSource(abc.ABC):
@@ -167,3 +162,15 @@ class Learner(VariableSource, Worker, Saveable):
 
   def restore(self, state):
     raise NotImplementedError('Method "restore" is not implemented.')
+
+
+class PrefetchingIterator(Iterator[T], abc.ABC):
+  """Abstract iterator object which supports `ready` method."""
+
+  @abc.abstractmethod
+  def ready(self) -> bool:
+    """Is there any data waiting for processing."""
+
+  @abc.abstractmethod
+  def retrieved_elements(self) -> int:
+    """How many elements were retrieved from the iterator."""

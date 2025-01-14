@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,9 +17,9 @@
 import time
 from typing import Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple
 
+from absl import logging
 import acme
-from acme import specs
-from acme.agents.jax.impala import types
+from acme.agents.jax.impala import networks as impala_networks
 from acme.jax import losses
 from acme.jax import networks as networks_lib
 from acme.jax import utils
@@ -46,31 +45,40 @@ class IMPALALearner(acme.Learner):
 
   def __init__(
       self,
-      obs_spec: specs.Array,
-      unroll_init_fn: types.PolicyValueInitFn,
-      unroll_fn: types.PolicyValueFn,
-      initial_state_init_fn: types.RecurrentStateInitFn,
-      initial_state_fn: types.RecurrentStateFn,
+      networks: impala_networks.IMPALANetworks,
       iterator: Iterator[reverb.ReplaySample],
       optimizer: optax.GradientTransformation,
       random_key: networks_lib.PRNGKey,
       discount: float = 0.99,
-      entropy_cost: float = 0.,
-      baseline_cost: float = 1.,
+      entropy_cost: float = 0.0,
+      baseline_cost: float = 1.0,
       max_abs_reward: float = np.inf,
-      counter: counting.Counter = None,
-      logger: loggers.Logger = None,
-      devices: Optional[Sequence[jax.xla.Device]] = None,
+      counter: Optional[counting.Counter] = None,
+      logger: Optional[loggers.Logger] = None,
+      devices: Optional[Sequence[jax.Device]] = None,
       prefetch_size: int = 2,
-      num_prefetch_threads: Optional[int] = None,
   ):
-
     local_devices = jax.local_devices()
+    process_id = jax.process_index()
+    logging.info('Learner process id: %s. Devices passed: %s', process_id,
+                 devices)
+    logging.info('Learner process id: %s. Local devices from JAX API: %s',
+                 process_id, local_devices)
     self._devices = devices or local_devices
     self._local_devices = [d for d in self._devices if d in local_devices]
 
+    self._iterator = iterator
+
+    def unroll_without_rng(
+        params: networks_lib.Params, observations: networks_lib.Observation,
+        initial_state: networks_lib.RecurrentState
+    ) -> Tuple[networks_lib.NetworkOutput, networks_lib.RecurrentState]:
+      unused_rng = jax.random.PRNGKey(0)
+      return networks.unroll(params, unused_rng, observations, initial_state)
+
     loss_fn = losses.impala_loss(
-        unroll_fn,
+        # TODO(b/244319884): Consider supporting the use of RNG in impala_loss.
+        unroll_fn=unroll_without_rng,
         discount=discount,
         max_abs_reward=max_abs_reward,
         baseline_cost=baseline_cost,
@@ -83,8 +91,8 @@ class IMPALALearner(acme.Learner):
       """Computes an SGD step, returning new state and metrics for logging."""
 
       # Compute gradients.
-      grad_fn = jax.value_and_grad(loss_fn)
-      loss_value, gradients = grad_fn(state.params, sample)
+      grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
+      (loss_value, metrics), gradients = grad_fn(state.params, sample)
 
       # Average gradients over pmap replicas before optimizer update.
       gradients = jax.lax.pmean(gradients, _PMAP_AXIS_NAME)
@@ -93,9 +101,11 @@ class IMPALALearner(acme.Learner):
       updates, new_opt_state = optimizer.update(gradients, state.opt_state)
       new_params = optax.apply_updates(state.params, updates)
 
-      metrics = {
+      metrics.update({
           'loss': loss_value,
-      }
+          'param_norm': optax.global_norm(new_params),
+          'param_updates_norm': optax.global_norm(updates),
+      })
 
       new_state = TrainingState(params=new_params, opt_state=new_opt_state)
 
@@ -103,64 +113,48 @@ class IMPALALearner(acme.Learner):
 
     def make_initial_state(key: jnp.ndarray) -> TrainingState:
       """Initialises the training state (parameters and optimiser state)."""
-      dummy_obs = utils.zeros_like(obs_spec)
-      dummy_obs = utils.add_batch_dim(dummy_obs)  # Dummy 'sequence' dim.
-
-      key, key_initial_state = jax.random.split(key)
-      params = initial_state_init_fn(key_initial_state)
-      # TODO(jferret): as it stands, we do not yet support
-      # training the initial state params.
-      initial_state = initial_state_fn(params)
-
-      initial_params = unroll_init_fn(key, dummy_obs, initial_state)
-      initial_opt_state = optimizer.init(initial_params)
+      initial_params = networks.init(key)
       return TrainingState(
-          params=initial_params, opt_state=initial_opt_state)
+          params=initial_params, opt_state=optimizer.init(initial_params))
 
     # Initialise training state (parameters and optimiser state).
     state = make_initial_state(random_key)
     self._state = utils.replicate_in_all_devices(state, self._local_devices)
-
-    if num_prefetch_threads is None:
-      num_prefetch_threads = len(self._local_devices)
-    self._prefetched_iterator = utils.sharded_prefetch(
-        iterator,
-        buffer_size=prefetch_size,
-        devices=self._local_devices,
-        num_threads=num_prefetch_threads,
-    )
 
     self._sgd_step = jax.pmap(
         sgd_step, axis_name=_PMAP_AXIS_NAME, devices=self._devices)
 
     # Set up logging/counting.
     self._counter = counter or counting.Counter()
-    self._logger = logger or loggers.make_default_logger('learner')
+    self._logger = logger or loggers.make_default_logger(
+        'learner', steps_key=self._counter.get_steps_key())
 
   def step(self):
     """Does a step of SGD and logs the results."""
-    samples = next(self._prefetched_iterator)
+    samples = next(self._iterator)
 
     # Do a batch of SGD.
     start = time.time()
     self._state, results = self._sgd_step(self._state, samples)
 
     # Take results from first replica.
+    # NOTE: This measure will be a noisy estimate for the purposes of the logs
+    # as it does not pmean over all devices.
     results = utils.get_from_first_device(results)
 
-    # Update our counts and record it.
+    # Update our counts and record them.
     counts = self._counter.increment(steps=1, time_elapsed=time.time() - start)
 
-    # Snapshot and attempt to write logs.
+    # Maybe write logs.
     self._logger.write({**results, **counts})
 
   def get_variables(self, names: Sequence[str]) -> List[networks_lib.Params]:
     # Return first replica of parameters.
-    return [utils.get_from_first_device(self._state.params, as_numpy=False)]
+    return utils.get_from_first_device([self._state.params], as_numpy=False)
 
   def save(self) -> TrainingState:
     # Serialize only the first replica of parameters and optimizer state.
-    return jax.tree_map(utils.get_from_first_device, self._state)
+    return utils.get_from_first_device(self._state)
 
   def restore(self, state: TrainingState):
     self._state = utils.replicate_in_all_devices(state, self._local_devices)

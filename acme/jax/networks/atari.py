@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,16 +22,14 @@ Glossary of shapes:
 - X?: X is optional (e.g. optional batch/sequence dimension).
 
 """
-import functools
-from typing import Tuple
+from typing import Any, Optional, Sequence, Tuple
 
 from acme.jax.networks import base
 from acme.jax.networks import duelling
 from acme.jax.networks import embedding
 from acme.jax.networks import policy_value
-
+from acme.jax.networks import resnet
 from acme.wrappers import observation_action_reward
-
 import haiku as hk
 import jax
 import jax.numpy as jnp
@@ -41,18 +38,15 @@ import jax.numpy as jnp
 Images = jnp.ndarray
 
 
-class AtariTorso(base.Module):
+class AtariTorso(hk.Module):
   """Simple convolutional stack commonly used for Atari."""
 
   def __init__(self):
     super().__init__(name='atari_torso')
     self._network = hk.Sequential([
-        hk.Conv2D(32, [8, 8], 4),
-        jax.nn.relu,
-        hk.Conv2D(64, [4, 4], 2),
-        jax.nn.relu,
-        hk.Conv2D(64, [3, 3], 1),
-        jax.nn.relu
+        hk.Conv2D(32, [8, 8], 4), jax.nn.relu,
+        hk.Conv2D(64, [4, 4], 2), jax.nn.relu,
+        hk.Conv2D(64, [3, 3], 1), jax.nn.relu
     ])
 
   def __call__(self, inputs: Images) -> jnp.ndarray:
@@ -81,55 +75,35 @@ def dqn_atari_network(num_actions: int) -> base.QNetwork:
   return network
 
 
-class ResidualBlock(hk.Module):
-  """Residual block."""
-
-  def __init__(self, num_channels: int, name: str = 'residual_block'):
-    super().__init__(name=name)
-    self._block = hk.Sequential([
-        jax.nn.relu,
-        hk.Conv2D(
-            num_channels, kernel_shape=[3, 3], stride=[1, 1], padding='SAME'),
-        jax.nn.relu,
-        hk.Conv2D(
-            num_channels, kernel_shape=[3, 3], stride=[1, 1], padding='SAME'),
-    ])
-
-  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
-    return self._block(x) + x
-
-
-class DeepAtariTorso(base.Module):
+class DeepAtariTorso(hk.Module):
   """Deep torso for Atari, from the IMPALA paper."""
 
-  def __init__(self, name: str = 'deep_atari_torso'):
+  def __init__(
+      self,
+      channels_per_group: Sequence[int] = (16, 32, 32),
+      blocks_per_group: Sequence[int] = (2, 2, 2),
+      downsampling_strategies: Sequence[resnet.DownsamplingStrategy] = (
+          resnet.DownsamplingStrategy.CONV_MAX,) * 3,
+      hidden_sizes: Sequence[int] = (256,),
+      use_layer_norm: bool = False,
+      name: str = 'deep_atari_torso'):
     super().__init__(name=name)
-    layers = []
-    for i, (num_channels, num_blocks) in enumerate([(16, 2), (32, 2), (32, 2)]):
-      conv = hk.Conv2D(
-          num_channels, kernel_shape=[3, 3], stride=[1, 1], padding='SAME')
-      pooling = functools.partial(
-          hk.max_pool,
-          window_shape=[1, 3, 3, 1],
-          strides=[1, 2, 2, 1],
-          padding='SAME')
-      layers.append(conv)
-      layers.append(pooling)
-
-      for j in range(num_blocks):
-        block = ResidualBlock(num_channels, name='residual_{}_{}'.format(i, j))
-        layers.append(block)
-
-    layers.extend([
-        jax.nn.relu,
-        hk.Flatten(),
-        hk.Linear(256),
-        jax.nn.relu,
-    ])
-    self._network = hk.Sequential(layers)
+    self._use_layer_norm = use_layer_norm
+    self.resnet = resnet.ResNetTorso(
+        channels_per_group=channels_per_group,
+        blocks_per_group=blocks_per_group,
+        downsampling_strategies=downsampling_strategies,
+        use_layer_norm=use_layer_norm)
+    # Make sure to activate the last layer as this torso is expected to feed
+    # into the rest of a bigger network.
+    self.mlp_head = hk.nets.MLP(output_sizes=hidden_sizes, activate_final=True)
 
   def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
-    return self._network(x)
+    output = self.resnet(x)
+    output = jax.nn.relu(output)
+    output = hk.Flatten(preserve_dims=-3)(output)
+    output = self.mlp_head(output)
+    return output
 
 
 class DeepIMPALAAtariNetwork(hk.RNNCore):
@@ -140,25 +114,28 @@ class DeepIMPALAAtariNetwork(hk.RNNCore):
 
   def __init__(self, num_actions: int):
     super().__init__(name='impala_atari_network')
-    self._embed = embedding.OAREmbedding(DeepAtariTorso(), num_actions)
-    self._core = hk.LSTM(256)
+    self._embed = embedding.OAREmbedding(
+        DeepAtariTorso(use_layer_norm=True), num_actions)
+    self._core = hk.GRU(256)
     self._head = policy_value.PolicyValueHead(num_actions)
     self._num_actions = num_actions
 
-  def __call__(self, inputs: observation_action_reward.OAR,
-               state: hk.LSTMState) -> base.LSTMOutputs:
-
+  def __call__(
+      self, inputs: observation_action_reward.OAR, state: hk.LSTMState
+  ) -> Any:
     embeddings = self._embed(inputs)  # [B?, D+A+1]
     embeddings, new_state = self._core(embeddings, state)
     logits, value = self._head(embeddings)  # logits: [B?, A], value: [B?, 1]
 
     return (logits, value), new_state
 
-  def initial_state(self, batch_size: int, **unused_kwargs) -> hk.LSTMState:
+  def initial_state(self, batch_size: Optional[int],
+                    **unused_kwargs) -> hk.LSTMState:
     return self._core.initial_state(batch_size)
 
-  def unroll(self, inputs: observation_action_reward.OAR,
-             state: hk.LSTMState) -> base.LSTMOutputs:
+  def unroll(
+      self, inputs: observation_action_reward.OAR, state: hk.LSTMState
+  ) -> Any:
     """Efficient unroll that applies embeddings, MLP, & convnet in one pass."""
     embeddings = self._embed(inputs)
     embeddings, new_states = hk.static_unroll(self._core, embeddings, state)
@@ -175,7 +152,8 @@ class R2D2AtariNetwork(hk.RNNCore):
 
   def __init__(self, num_actions: int):
     super().__init__(name='r2d2_atari_network')
-    self._embed = embedding.OAREmbedding(AtariTorso(), num_actions)
+    self._embed = embedding.OAREmbedding(
+        DeepAtariTorso(hidden_sizes=[512], use_layer_norm=True), num_actions)
     self._core = hk.LSTM(512)
     self._duelling_head = duelling.DuellingMLP(num_actions, hidden_sizes=[512])
     self._num_actions = num_actions
@@ -190,7 +168,8 @@ class R2D2AtariNetwork(hk.RNNCore):
     q_values = self._duelling_head(core_outputs)
     return q_values, new_state
 
-  def initial_state(self, batch_size: int, **unused_kwargs) -> hk.LSTMState:
+  def initial_state(self, batch_size: Optional[int],
+                    **unused_kwargs) -> hk.LSTMState:
     return self._core.initial_state(batch_size)
 
   def unroll(
@@ -203,5 +182,3 @@ class R2D2AtariNetwork(hk.RNNCore):
     core_outputs, new_states = hk.static_unroll(self._core, embeddings, state)
     q_values = hk.BatchApply(self._duelling_head)(core_outputs)  # [T, B, A]
     return q_values, new_states
-
-

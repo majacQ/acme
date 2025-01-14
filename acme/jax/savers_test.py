@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +16,6 @@
 
 from unittest import mock
 
-from absl.testing import absltest
 from acme import core
 from acme.jax import savers
 from acme.testing import test_utils
@@ -25,6 +23,8 @@ from acme.utils import paths
 import jax.numpy as jnp
 import numpy as np
 import tree
+
+from absl.testing import absltest
 
 
 class DummySaveable(core.Saveable):

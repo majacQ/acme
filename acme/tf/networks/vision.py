@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,15 +30,39 @@ class ResNetTorso(snt.Module):
       conv_shape: Union[int, Sequence[int]] = 3,
       conv_stride: Union[int, Sequence[int]] = 1,
       pool_size: Union[int, Sequence[int]] = 3,
-      pool_stride: Union[int, Sequence[int]] = 2,
+      pool_stride: Union[int, Sequence[int], Sequence[Sequence[int]]] = 2,
       data_format: str = 'NHWC',
       activation: Callable[[tf.Tensor], tf.Tensor] = tf.nn.relu,
       output_dtype: tf.DType = tf.float32,
       name: str = 'resnet_torso'):
+    """Builds an IMPALA-style ResNet.
+
+    The arguments' default values construct the IMPALA resnet.
+
+    Args:
+      num_channels: The number of convolutional channels for each layer.
+      num_blocks: The number of resnet blocks in each "layer".
+      num_output_hidden: The output size(s) of the MLP layer(s) on top.
+      conv_shape: The convolution filter size (int), or size dimensions (H, W).
+      conv_stride: the convolution stride (int), or strides (row, column).
+      pool_size: The pooling footprint size (int), or size dimensions (H, W).
+      pool_stride: The pooling stride (int) or strides (row, column), or
+        strides for each of the N layers ((r1, c1), (r2, c2), ..., (rN, cN)).
+      data_format: The axis order of the input.
+      activation: The activation function.
+      output_dtype: the output dtype.
+      name: The Sonnet module name.
+    """
     super().__init__(name=name)
 
     self._output_dtype = output_dtype
     self._num_layers = len(num_blocks)
+
+    if isinstance(pool_stride, int):
+      pool_stride = (pool_stride, pool_stride)
+
+    if isinstance(pool_stride[0], int):
+      pool_stride = self._num_layers * (pool_stride,)
 
     # Create sequence of residual blocks.
     blocks = []
@@ -51,7 +74,7 @@ class ResNetTorso(snt.Module):
               conv_shape,
               conv_stride,
               pool_size,
-              pool_stride,
+              pool_stride[i],
               data_format=data_format,
               activation=activation))
 
@@ -157,3 +180,57 @@ def _preprocess_inputs(inputs: tf.Tensor, output_dtype: tf.DType) -> tf.Tensor:
   processed_inputs = tf.image.convert_image_dtype(
       flattened_inputs, dtype=output_dtype)
   return processed_inputs
+
+
+class DrQTorso(snt.Module):
+  """DrQ Torso inspired by the second DrQ paper [Yarats et al., 2021].
+
+  [Yarats et al., 2021] https://arxiv.org/abs/2107.09645
+  """
+
+  def __init__(
+      self,
+      data_format: str = 'NHWC',
+      activation: Callable[[tf.Tensor], tf.Tensor] = tf.nn.relu,
+      output_dtype: tf.DType = tf.float32,
+      name: str = 'resnet_torso'):
+    super().__init__(name=name)
+
+    self._output_dtype = output_dtype
+
+    # Create a Conv2D factory since we'll be making quite a few.
+    gain = 2**0.5 if activation == tf.nn.relu else 1.
+    def build_conv_layer(name: str,
+                         output_channels: int = 32,
+                         kernel_shape: Sequence[int] = (3, 3),
+                         stride: int = 1):
+      return snt.Conv2D(
+          output_channels=output_channels,
+          kernel_shape=kernel_shape,
+          stride=stride,
+          padding='SAME',
+          data_format=data_format,
+          w_init=snt.initializers.Orthogonal(gain=gain, seed=None),
+          b_init=snt.initializers.Zeros(),
+          name=name)
+
+    self._network = snt.Sequential(
+        [build_conv_layer('conv_0', stride=2),
+         activation,
+         build_conv_layer('conv_1', stride=1),
+         activation,
+         build_conv_layer('conv_2', stride=1),
+         activation,
+         build_conv_layer('conv_3', stride=1),
+         activation,
+         snt.Flatten()])
+
+  def __call__(self, inputs: tf.Tensor) -> tf.Tensor:
+    """Evaluates the ResidualPixelCore."""
+
+    # Normalize to -0.5 to 0.5
+    preprocessed_inputs = _preprocess_inputs(inputs, self._output_dtype) - 0.5
+
+    torso_output = self._network(preprocessed_inputs)
+
+    return torso_output

@@ -14,11 +14,12 @@
 
 """Tests for acme.tf.networks.distributional."""
 
-from absl.testing import absltest
-from absl.testing import parameterized
 from acme.tf.networks import distributional
 import numpy as np
 from numpy import testing as npt
+
+from absl.testing import absltest
+from absl.testing import parameterized
 
 
 class DistributionalTest(parameterized.TestCase):
@@ -35,13 +36,13 @@ class DistributionalTest(parameterized.TestCase):
       num_atoms,
       expected_logits_shape):
 
-    vmin = np.zeros(vmin_shape, np.float)
-    vmax = np.ones(vmax_shape, np.float)
+    vmin = np.zeros(vmin_shape, float)
+    vmax = np.ones(vmax_shape, float)
     head = distributional.DiscreteValuedHead(
         vmin=vmin,
         vmax=vmax,
         num_atoms=num_atoms)
-    input_array = np.zeros(input_shape, dtype=np.float)
+    input_array = np.zeros(input_shape, dtype=float)
     output_distribution = head(input_array)
     self.assertEqual(output_distribution.logits_parameter().shape,
                      expected_logits_shape)

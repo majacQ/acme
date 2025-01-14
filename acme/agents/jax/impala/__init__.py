@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,8 +13,9 @@
 # limitations under the License.
 
 """Importance-weighted actor-learner architecture (IMPALA) agent."""
-# pylint: disable=g-bad-import-order
 
-from acme.agents.jax.impala.agent import IMPALA
-from acme.agents.jax.impala.agent import IMPALAFromConfig
+from acme.agents.jax.impala.builder import IMPALABuilder
+from acme.agents.jax.impala.config import IMPALAConfig
 from acme.agents.jax.impala.learning import IMPALALearner
+from acme.agents.jax.impala.networks import IMPALANetworks
+from acme.agents.jax.impala.networks import make_atari_networks

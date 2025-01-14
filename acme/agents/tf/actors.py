@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -182,7 +181,6 @@ class RecurrentActor(core.Actor):
   def update(self, wait: bool = False):
     if self._variable_client:
       self._variable_client.update(wait)
-
 
 # Internal class 1.
 # Internal class 2.

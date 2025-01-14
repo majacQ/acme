@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,11 +15,10 @@
 """A simulator model, which wraps a copy of the true environment."""
 
 import copy
+import dataclasses
 
 from acme.agents.tf.mcts import types
 from acme.agents.tf.mcts.models import base
-
-import dataclasses
 import dm_env
 
 

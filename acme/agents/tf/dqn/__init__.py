@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,4 +15,5 @@
 """Implementation of a deep Q-networks (DQN) agent."""
 
 from acme.agents.tf.dqn.agent import DQN
+from acme.agents.tf.dqn.agent_distributed import DistributedDQN
 from acme.agents.tf.dqn.learning import DQNLearner

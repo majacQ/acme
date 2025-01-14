@@ -1,4 +1,3 @@
-# Lint as: python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +22,7 @@ from typing import Any
 from absl import logging
 from acme import core
 from acme.tf import savers as tf_savers
-import jax.numpy as jnp
+import jax
 import numpy as np
 import tree
 
@@ -61,7 +60,7 @@ def save_to_path(ckpt_dir: str, state: CheckpointState):
   if not os.path.exists(ckpt_dir):
     os.makedirs(ckpt_dir)
 
-  is_numpy = lambda x: isinstance(x, (np.ndarray, jnp.DeviceArray))
+  is_numpy = lambda x: isinstance(x, (np.ndarray, jax.Array))
   flat_state = tree.flatten(state)
   nest_exemplar = tree.map_structure(is_numpy, state)
 
@@ -85,7 +84,7 @@ class Checkpointer(tf_savers.Checkpointer):
   def __init__(
       self,
       object_to_save: core.Saveable,
-      directory: str = '~/acme/',
+      directory: str = '~/acme',
       subdirectory: str = 'default',
       **tf_checkpointer_kwargs):
     super().__init__(dict(saveable=object_to_save),

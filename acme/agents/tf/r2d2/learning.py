@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,8 +52,8 @@ class R2D2Learner(acme.Learner, tf2_savers.TFSaveable):
       sequence_length: int,
       dataset: tf.data.Dataset,
       reverb_client: Optional[reverb.TFClient] = None,
-      counter: counting.Counter = None,
-      logger: loggers.Logger = None,
+      counter: Optional[counting.Counter] = None,
+      logger: Optional[loggers.Logger] = None,
       discount: float = 0.99,
       target_update_period: int = 100,
       importance_sampling_exponent: float = 0.2,
@@ -64,7 +63,7 @@ class R2D2Learner(acme.Learner, tf2_savers.TFSaveable):
       store_lstm_state: bool = True,
       max_priority_weight: float = 0.9,
       n_step: int = 5,
-      clip_grad_norm: float = None,
+      clip_grad_norm: Optional[float] = None,
   ):
 
     if not isinstance(network, networks.RNNCore):
@@ -112,7 +111,7 @@ class R2D2Learner(acme.Learner, tf2_savers.TFSaveable):
     # fill the replay buffer.
     self._timestamp = None
 
-  # @tf.function
+  @tf.function
   def _step(self) -> Dict[str, tf.Tensor]:
 
     # Draw a batch of data from replay.

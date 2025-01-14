@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +15,8 @@
 """Adders that use Reverb (github.com/deepmind/reverb) as a backend."""
 
 import abc
-from typing import Callable, Iterable, Mapping, NamedTuple, Optional, Union, Tuple
+import time
+from typing import Callable, Iterable, Mapping, NamedTuple, Optional, Sized, Union, Tuple
 
 from absl import logging
 from acme import specs
@@ -29,6 +29,7 @@ import tensorflow as tf
 import tree
 
 DEFAULT_PRIORITY_TABLE = 'priority_table'
+_MIN_WRITER_LIFESPAN_SECONDS = 60
 StartOfEpisodeType = Union[bool, specs.Array, tf.Tensor, tf.TensorSpec,
                            Tuple[()]]
 
@@ -77,6 +78,7 @@ class ReverbAdder(base.Adder):
       max_in_flight_items: int,
       delta_encoded: bool = False,
       priority_fns: Optional[PriorityFnMapping] = None,
+      validate_items: bool = True,
   ):
     """Initialize a ReverbAdder instance.
 
@@ -92,6 +94,9 @@ class ReverbAdder(base.Adder):
       priority_fns: A mapping from table names to priority functions; if
         omitted, all transitions/steps/sequences are given uniform priorities
         (1.0) and placed in DEFAULT_PRIORITY_TABLE.
+      validate_items: Whether to validate items against the table signature
+        before they are sent to the server. This requires table signature to be
+        fetched from the server and cached locally.
     """
     if priority_fns:
       priority_fns = dict(priority_fns)
@@ -102,7 +107,9 @@ class ReverbAdder(base.Adder):
     self._priority_fns = priority_fns
     self._max_sequence_length = max_sequence_length
     self._delta_encoded = delta_encoded
+    # TODO(b/206629159): Remove this.
     self._max_in_flight_items = max_in_flight_items
+    self._add_first_called = False
 
     # This is exposed as the _writer property in such a way that it will create
     # a new writer automatically whenever the internal __writer is None. Users
@@ -111,26 +118,28 @@ class ReverbAdder(base.Adder):
     # Every time a new writer is created, it must fetch the signature from the
     # Reverb server. If this is set too low it can crash the adders in a
     # distributed setup where the replay may take a while to spin up.
-    self._get_signature_timeout_ms = 300_000
+    self._validate_items = validate_items
 
   def __del__(self):
     if self.__writer is not None:
       timeout_ms = 10_000
       # Try flush all appended data before closing to avoid loss of experience.
       try:
-        self.__writer.flush(self._max_in_flight_items, timeout_ms=timeout_ms)
+        self.__writer.flush(0, timeout_ms=timeout_ms)
       except reverb.DeadlineExceededError as e:
         logging.error(
             'Timeout (%d ms) exceeded when flushing the writer before '
             'deleting it. Caught Reverb exception: %s', timeout_ms, str(e))
       self.__writer.close()
+      self.__writer = None
 
   @property
   def _writer(self) -> reverb.TrajectoryWriter:
     if self.__writer is None:
       self.__writer = self._client.trajectory_writer(
           num_keep_alive_refs=self._max_sequence_length,
-          get_signature_timeout_ms=self._get_signature_timeout_ms)
+          validate_items=self._validate_items)
+      self._writer_created_timestamp = time.time()
     return self.__writer
 
   def add_priority_table(self, table_name: str,
@@ -148,6 +157,13 @@ class ReverbAdder(base.Adder):
       # Flush all appended data and clear the buffers.
       self.__writer.end_episode(clear_buffers=True, timeout_ms=timeout_ms)
 
+      # Create a new writer unless the current one is too young.
+      # This is to reduce the relative overhead of creating a new Reverb writer.
+      if (time.time() - self._writer_created_timestamp >
+          _MIN_WRITER_LIFESPAN_SECONDS):
+        self.__writer = None
+    self._add_first_called = False
+
   def add_first(self, timestep: dm_env.TimeStep):
     """Record the first observation of a trajectory."""
     if not timestep.first():
@@ -159,6 +175,7 @@ class ReverbAdder(base.Adder):
     self._writer.append(dict(observation=timestep.observation,
                              start_of_episode=timestep.first()),
                         partial_step=True)
+    self._add_first_called = True
 
   def add(self,
           action: types.NestedArray,
@@ -166,19 +183,19 @@ class ReverbAdder(base.Adder):
           extras: types.NestedArray = ()):
     """Record an action and the following timestep."""
 
-    try:
-      history = self._writer.history
-    except RuntimeError:
+    if not self._add_first_called:
       raise ValueError('adder.add_first must be called before adder.add.')
 
     # Add the timestep to the buffer.
+    has_extras = (len(extras) > 0 if isinstance(extras, Sized)  # pylint: disable=g-explicit-length-test
+                  else extras is not None)
     current_step = dict(
         # Observation was passed at the previous add call.
         action=action,
         reward=next_timestep.reward,
         discount=next_timestep.discount,
         # Start of episode indicator was passed at the previous add call.
-        **({'extras': extras} if extras else {})
+        **({'extras': extras} if has_extras else {})
     )
     self._writer.append(current_step)
 

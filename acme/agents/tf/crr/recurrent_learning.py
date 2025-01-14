@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -72,7 +71,7 @@ class RCRRLearner(core.Learner):
         policy).
       target_critic_network: the target critic.
       dataset: dataset to learn from, whether fixed or from a replay buffer
-        (see `acme.datasets.reverb.make_dataset` documentation).
+        (see `acme.datasets.reverb.make_reverb_dataset` documentation).
       accelerator_strategy: the strategy used to distribute computation,
         whether on a single, or multiple, GPU or TPU; as supported by
         tf.distribute.

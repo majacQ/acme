@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +14,7 @@
 
 """Networks used in continuous control."""
 
-from typing import Sequence
+from typing import Callable, Optional, Sequence
 
 from acme import types
 from acme.tf import utils as tf2_utils
@@ -23,8 +22,10 @@ from acme.tf.networks import base
 import sonnet as snt
 import tensorflow as tf
 
-uniform_initializer = tf.initializers.VarianceScaling(
-    distribution='uniform', mode='fan_out', scale=0.333)
+
+def _uniform_initializer():
+  return tf.initializers.VarianceScaling(
+      distribution='uniform', mode='fan_out', scale=0.333)
 
 
 class NearZeroInitializedLinear(snt.Linear):
@@ -41,25 +42,32 @@ class LayerNormMLP(snt.Module):
   first layer and non-linearities (elu) on all but the last remaining layers.
   """
 
-  def __init__(self, layer_sizes: Sequence[int], activate_final: bool = False):
+  def __init__(self,
+               layer_sizes: Sequence[int],
+               w_init: Optional[snt.initializers.Initializer] = None,
+               activation: Callable[[tf.Tensor], tf.Tensor] = tf.nn.elu,
+               activate_final: bool = False):
     """Construct the MLP.
 
     Args:
       layer_sizes: a sequence of ints specifying the size of each layer.
+      w_init: initializer for Linear weights.
+      activation: activation function to apply between linear layers. Defaults
+        to ELU. Note! This is different from snt.nets.MLP's default.
       activate_final: whether or not to use the activation function on the final
         layer of the neural network.
     """
     super().__init__(name='feedforward_mlp_torso')
 
     self._network = snt.Sequential([
-        snt.Linear(layer_sizes[0], w_init=uniform_initializer),
+        snt.Linear(layer_sizes[0], w_init=w_init or _uniform_initializer()),
         snt.LayerNorm(
             axis=slice(1, None), create_scale=True, create_offset=True),
         tf.nn.tanh,
         snt.nets.MLP(
             layer_sizes[1:],
-            w_init=uniform_initializer,
-            activation=tf.nn.elu,
+            w_init=w_init or _uniform_initializer(),
+            activation=activation,
             activate_final=activate_final),
     ])
 
@@ -116,11 +124,12 @@ class LayerNormAndResidualMLP(snt.Module):
     super().__init__(name='LayerNormAndResidualMLP')
 
     # Create initial MLP layer.
-    layers = [snt.nets.MLP([hidden_size], w_init=uniform_initializer)]
+    layers = [snt.nets.MLP([hidden_size], w_init=_uniform_initializer())]
 
     # Follow it up with num_blocks MLPs with layernorm and residual connections.
     for _ in range(num_blocks):
-      mlp = snt.nets.MLP([hidden_size, hidden_size], w_init=uniform_initializer)
+      mlp = snt.nets.MLP([hidden_size, hidden_size],
+                         w_init=_uniform_initializer())
       layers.append(ResidualLayernormWrapper(mlp))
 
     self._module = snt.Sequential(layers)

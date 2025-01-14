@@ -14,13 +14,14 @@
 
 """Tests for acme.utils.reverb_utils."""
 
-from absl.testing import absltest
 from acme import types
 from acme.adders import reverb as reverb_adders
 from acme.utils import reverb_utils
 import numpy as np
 import reverb
 import tree
+
+from absl.testing import absltest
 
 
 class ReverbUtilsTest(absltest.TestCase):
@@ -34,15 +35,25 @@ class ReverbUtilsTest(absltest.TestCase):
         remover=reverb.selectors.Fifo(),
         max_size=10,
         rate_limiter=limiter)
-    table_from_info = reverb_utils.make_replay_table_from_info(table.info)
-    self.assertEqual(table_from_info.info, table.info)
+    new_table = reverb_utils.make_replay_table_from_info(table.info)
+    new_info = new_table.info
 
-  _EMPTY_INFO = reverb.SampleInfo((), (), (), ())
+    # table_worker_time is not set by the above utility since this is meant to
+    # be monitoring information about any given table. So instead we copy this
+    # so that the assertion below checks that everything else matches.
+
+    new_info.table_worker_time.sleeping_ms = (
+        table.info.table_worker_time.sleeping_ms)
+
+    self.assertEqual(new_info, table.info)
+
+  _EMPTY_INFO = reverb.SampleInfo(*[() for _ in reverb.SampleInfo.tf_dtypes()])
   _DUMMY_OBS = np.array([[[0], [1], [2]]])
   _DUMMY_ACTION = np.array([[[3], [4], [5]]])
   _DUMMY_REWARD = np.array([[6, 7, 8]])
   _DUMMY_DISCOUNT = np.array([[.99, .99, .99]])
   _DUMMY_NEXT_OBS = np.array([[[1], [2], [0]]])
+  _DUMMY_RETURN = np.array([[20.77, 14.92, 8.]])
 
   def _create_dummy_steps(self):
     return reverb_adders.Step(
@@ -51,7 +62,7 @@ class ReverbUtilsTest(absltest.TestCase):
         reward=self._DUMMY_REWARD,
         discount=self._DUMMY_DISCOUNT,
         start_of_episode=True,
-        extras=())
+        extras={'return': self._DUMMY_RETURN})
 
   def _create_dummy_transitions(self):
     return types.Transition(
@@ -59,7 +70,8 @@ class ReverbUtilsTest(absltest.TestCase):
         action=self._DUMMY_ACTION,
         reward=self._DUMMY_REWARD,
         discount=self._DUMMY_DISCOUNT,
-        next_observation=self._DUMMY_NEXT_OBS)
+        next_observation=self._DUMMY_NEXT_OBS,
+        extras={'return': self._DUMMY_RETURN})
 
   def test_replay_sample_to_sars_transition_is_sequence(self):
     fake_sample = reverb.ReplaySample(

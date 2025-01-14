@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,12 +14,11 @@
 
 """A Monte Carlo Tree Search implementation."""
 
+import dataclasses
 from typing import Callable, Dict
 
 from acme.agents.tf.mcts import models
 from acme.agents.tf.mcts import types
-
-import dataclasses
 import numpy as np
 
 

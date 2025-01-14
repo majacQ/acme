@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,10 +14,9 @@
 
 """Modules for computing custom embeddings."""
 
-from acme.jax.networks import base
-from acme.wrappers import observation_action_reward
-
 import dataclasses
+
+from acme.wrappers import observation_action_reward
 import haiku as hk
 import jax
 import jax.numpy as jnp
@@ -28,7 +26,7 @@ import jax.numpy as jnp
 class OAREmbedding(hk.Module):
   """Module for embedding (observation, action, reward) inputs together."""
 
-  torso: base.Module
+  torso: hk.SupportsCall
   num_actions: int
 
   def __call__(self, inputs: observation_action_reward.OAR) -> jnp.ndarray:

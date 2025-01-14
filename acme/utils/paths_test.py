@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,13 +16,10 @@
 
 from unittest import mock
 
-from absl import flags
-from absl.testing import absltest
-
 from acme.testing import test_utils
-import acme.utils.paths as paths
+import acme.utils.paths as paths  # pylint: disable=consider-using-from-import
 
-FLAGS = flags.FLAGS
+from absl.testing import absltest
 
 
 class PathTest(test_utils.TestCase):
@@ -36,13 +32,9 @@ class PathTest(test_utils.TestCase):
     self.assertEqual(path, f'{root_directory}/test/foo/bar')
 
   def test_unique_id_with_flag(self):
-    argv = ('./program', '--acme_id=test_flag')
-    FLAGS(argv)
-    self.assertEqual(paths.get_unique_id(), ('test_flag',))
-    FLAGS.unparse_flags()
-
-  def test_unique_id_without_flag(self):
-    self.assertEqual(paths.get_unique_id(), (str(paths._ACME_ID),))
+    with mock.patch.object(paths, 'ACME_ID') as mock_acme_id:
+      mock_acme_id.value = 'test_flag'
+      self.assertEqual(paths.get_unique_id(), ('test_flag',))
 
 
 if __name__ == '__main__':

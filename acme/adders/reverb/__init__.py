@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +21,13 @@ from acme.adders.reverb.base import PriorityFn
 from acme.adders.reverb.base import PriorityFnInput
 from acme.adders.reverb.base import ReverbAdder
 from acme.adders.reverb.base import Step
+from acme.adders.reverb.base import Trajectory
 
 from acme.adders.reverb.episode import EpisodeAdder
+from acme.adders.reverb.sequence import EndBehavior
 from acme.adders.reverb.sequence import SequenceAdder
+from acme.adders.reverb.structured import create_n_step_transition_config
+from acme.adders.reverb.structured import create_step_spec
+from acme.adders.reverb.structured import n_step_from_trajectory
+from acme.adders.reverb.structured import StructuredAdder
 from acme.adders.reverb.transition import NStepTransitionAdder

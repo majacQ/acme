@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +23,7 @@ class EnvironmentWrapper(dm_env.Environment):
   """Environment that wraps another environment.
 
   This exposes the wrapped environment with the `.environment` property and also
-  defines `__getattr__` so that attributes are invisible forwarded to the
+  defines `__getattr__` so that attributes are invisibly forwarded to the
   wrapped environment (and hence enabling duck-typing).
   """
 
@@ -33,9 +32,11 @@ class EnvironmentWrapper(dm_env.Environment):
   def __init__(self, environment: dm_env.Environment):
     self._environment = environment
 
-  def __getattr__(self, attr: str):
-    # Delegates attribute calls to the wrapped environment.
-    return getattr(self._environment, attr)
+  def __getattr__(self, name):
+    if name.startswith("__"):
+      raise AttributeError(
+          "attempted to get missing private attribute '{}'".format(name))
+    return getattr(self._environment, name)
 
   @property
   def environment(self) -> dm_env.Environment:
@@ -63,6 +64,9 @@ class EnvironmentWrapper(dm_env.Environment):
 
   def reward_spec(self):
     return self._environment.reward_spec()
+
+  def close(self):
+    return self._environment.close()
 
 
 def wrap_all(

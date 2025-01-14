@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,17 +16,25 @@
 
 from acme.utils.loggers.aggregators import Dispatcher
 from acme.utils.loggers.asynchronous import AsyncLogger
+from acme.utils.loggers.auto_close import AutoCloseLogger
 from acme.utils.loggers.base import Logger
+from acme.utils.loggers.base import LoggerFactory
+from acme.utils.loggers.base import LoggerLabel
+from acme.utils.loggers.base import LoggerStepsKey
 from acme.utils.loggers.base import LoggingData
 from acme.utils.loggers.base import NoOpLogger
+from acme.utils.loggers.base import TaskInstance
 from acme.utils.loggers.base import to_numpy
 from acme.utils.loggers.constant import ConstantLogger
 from acme.utils.loggers.csv import CSVLogger
 from acme.utils.loggers.dataframe import InMemoryLogger
 from acme.utils.loggers.filters import GatedFilter
+from acme.utils.loggers.filters import KeyFilter
 from acme.utils.loggers.filters import NoneFilter
 from acme.utils.loggers.filters import TimeFilter
+from acme.utils.loggers.flatten import FlattenDictLogger
 from acme.utils.loggers.default import make_default_logger  # pylint: disable=g-bad-import-order
 from acme.utils.loggers.terminal import TerminalLogger
+from acme.utils.loggers.timestamp import TimestampLogger
 
 # Internal imports.

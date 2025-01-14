@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +15,7 @@
 """Implementations of a distributional MPO agent."""
 
 from acme.agents.tf.mompo.agent import MultiObjectiveMPO
+from acme.agents.tf.mompo.agent_distributed import DistributedMultiObjectiveMPO
 from acme.agents.tf.mompo.learning import MultiObjectiveMPOLearner
 from acme.agents.tf.mompo.learning import QValueObjective
 from acme.agents.tf.mompo.learning import RewardObjective

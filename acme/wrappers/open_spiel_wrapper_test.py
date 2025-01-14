@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,9 +15,11 @@
 """Tests for open_spiel_wrapper."""
 
 import unittest
-from absl.testing import absltest
+
 from dm_env import specs
 import numpy as np
+
+from absl.testing import absltest
 
 SKIP_OPEN_SPIEL_TESTS = False
 SKIP_OPEN_SPIEL_MESSAGE = 'open_spiel not installed.'

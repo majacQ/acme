@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,18 +15,18 @@
 """Tests for OpenSpiel environment loop."""
 
 import unittest
-from absl.testing import absltest
-from absl.testing import parameterized
 
 import acme
 from acme import core
 from acme import specs
 from acme import types
 from acme import wrappers
-
 import dm_env
 import numpy as np
 import tree
+
+from absl.testing import absltest
+from absl.testing import parameterized
 
 SKIP_OPEN_SPIEL_TESTS = False
 SKIP_OPEN_SPIEL_MESSAGE = 'open_spiel not installed.'

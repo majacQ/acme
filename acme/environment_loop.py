@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,12 +16,13 @@
 
 import operator
 import time
-from typing import Optional
+from typing import List, Optional, Sequence
 
 from acme import core
-# Internal imports.
 from acme.utils import counting
 from acme.utils import loggers
+from acme.utils import observers as observers_lib
+from acme.utils import signals
 
 import dm_env
 from dm_env import specs
@@ -48,6 +48,10 @@ class EnvironmentLoop(core.Worker):
   by utils.loggers.make_default_logger. A string `label` can be passed to easily
   change the label associated with the default logger; this is ignored if a
   `Logger` instance is given.
+
+  A list of 'Observer' instances can be specified to generate additional metrics
+  to be logged by the logger. They have access to the 'Environment' instance,
+  the current timestep datastruct and the current action.
   """
 
   def __init__(
@@ -58,13 +62,16 @@ class EnvironmentLoop(core.Worker):
       logger: Optional[loggers.Logger] = None,
       should_update: bool = True,
       label: str = 'environment_loop',
+      observers: Sequence[observers_lib.EnvLoopObserver] = (),
   ):
     # Internalize agent and environment.
     self._environment = environment
     self._actor = actor
     self._counter = counter or counting.Counter()
-    self._logger = logger or loggers.make_default_logger(label)
+    self._logger = logger or loggers.make_default_logger(
+        label, steps_key=self._counter.get_steps_key())
     self._should_update = should_update
+    self._observers = observers
 
   def run_episode(self) -> loggers.LoggingData:
     """Run one episode.
@@ -77,31 +84,50 @@ class EnvironmentLoop(core.Worker):
       An instance of `loggers.LoggingData`.
     """
     # Reset any counts and start the environment.
-    start_time = time.time()
-    episode_steps = 0
+    episode_start_time = time.time()
+    select_action_durations: List[float] = []
+    env_step_durations: List[float] = []
+    episode_steps: int = 0
 
     # For evaluation, this keeps track of the total undiscounted reward
     # accumulated during the episode.
     episode_return = tree.map_structure(_generate_zeros_from_spec,
                                         self._environment.reward_spec())
+    env_reset_start = time.time()
     timestep = self._environment.reset()
-
+    env_reset_duration = time.time() - env_reset_start
     # Make the first observation.
     self._actor.observe_first(timestep)
+    for observer in self._observers:
+      # Initialize the observer with the current state of the env after reset
+      # and the initial timestep.
+      observer.observe_first(self._environment, timestep)
 
     # Run an episode.
     while not timestep.last():
-      # Generate an action from the agent's policy and step the environment.
-      action = self._actor.select_action(timestep.observation)
-      timestep = self._environment.step(action)
-
-      # Have the agent observe the timestep and let the actor update itself.
-      self._actor.observe(action, next_timestep=timestep)
-      if self._should_update:
-        self._actor.update()
-
       # Book-keeping.
       episode_steps += 1
+
+      # Generate an action from the agent's policy.
+      select_action_start = time.time()
+      action = self._actor.select_action(timestep.observation)
+      select_action_durations.append(time.time() - select_action_start)
+
+      # Step the environment with the agent's selected action.
+      env_step_start = time.time()
+      timestep = self._environment.step(action)
+      env_step_durations.append(time.time() - env_step_start)
+
+      # Have the agent and observers observe the timestep.
+      self._actor.observe(action, next_timestep=timestep)
+      for observer in self._observers:
+        # One environment step was completed. Observe the current state of the
+        # environment, the current timestep and the action.
+        observer.observe(self._environment, timestep, action)
+
+      # Give the actor the opportunity to update itself.
+      if self._should_update:
+        self._actor.update()
 
       # Equivalent to: episode_return += timestep.reward
       # We capture the return value because if timestep.reward is a JAX
@@ -116,18 +142,25 @@ class EnvironmentLoop(core.Worker):
     counts = self._counter.increment(episodes=1, steps=episode_steps)
 
     # Collect the results and combine with counts.
-    steps_per_second = episode_steps / (time.time() - start_time)
+    steps_per_second = episode_steps / (time.time() - episode_start_time)
     result = {
         'episode_length': episode_steps,
         'episode_return': episode_return,
         'steps_per_second': steps_per_second,
+        'env_reset_duration_sec': env_reset_duration,
+        'select_action_duration_sec': np.mean(select_action_durations),
+        'env_step_duration_sec': np.mean(env_step_durations),
     }
     result.update(counts)
+    for observer in self._observers:
+      result.update(observer.get_metrics())
     return result
 
-  def run(self,
-          num_episodes: Optional[int] = None,
-          num_steps: Optional[int] = None):
+  def run(
+      self,
+      num_episodes: Optional[int] = None,
+      num_steps: Optional[int] = None,
+  ) -> int:
     """Perform the run loop.
 
     Run the environment loop either for `num_episodes` episodes or for at
@@ -143,6 +176,9 @@ class EnvironmentLoop(core.Worker):
       num_episodes: number of episodes to run the loop for.
       num_steps: minimal number of steps to run the loop for.
 
+    Returns:
+      Actual number of steps the loop executed.
+
     Raises:
       ValueError: If both 'num_episodes' and 'num_steps' are not None.
     """
@@ -154,17 +190,20 @@ class EnvironmentLoop(core.Worker):
       return ((num_episodes is not None and episode_count >= num_episodes) or
               (num_steps is not None and step_count >= num_steps))
 
-    episode_count, step_count = 0, 0
-    while not should_terminate(episode_count, step_count):
-      result = self.run_episode()
-      episode_count += 1
-      step_count += result['episode_length']
-      # Log the given results.
-      self._logger.write(result)
+    episode_count: int = 0
+    step_count: int = 0
+    with signals.runtime_terminator():
+      while not should_terminate(episode_count, step_count):
+        episode_start = time.time()
+        result = self.run_episode()
+        result = {**result, **{'episode_duration': time.time() - episode_start}}
+        episode_count += 1
+        step_count += int(result['episode_length'])
+        # Log the given episode results.
+        self._logger.write(result)
+
+    return step_count
 
 
 def _generate_zeros_from_spec(spec: specs.Array) -> np.ndarray:
   return np.zeros(spec.shape, spec.dtype)
-
-
-# Internal class.

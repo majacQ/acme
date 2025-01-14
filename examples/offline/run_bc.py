@@ -1,4 +1,3 @@
-# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -114,11 +113,13 @@ def _n_step_transition_from_episode(observations: types.NestedTensor,
   probability = tf.constant(1.0, tf.float64)
   table_size = tf.constant(1, tf.int64)
   priority = tf.constant(1.0, tf.float64)
+  times_sampled = tf.constant(1, tf.int32)
   info = reverb.SampleInfo(
       key=key,
       probability=probability,
       table_size=table_size,
       priority=priority,
+      times_sampled=times_sampled,
   )
 
   return reverb.ReplaySample(info=info, data=(o_t, a_t, r_t, d_t, o_tp1))
